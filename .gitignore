@@ -5,3 +5,6 @@ server/dotnet-install.ps1
 
 # Optional live replay frames
 server/broadcast-frames.json
+
+# .NET build cache (bin/ is kept — it ships SimHost.dll)
+server/sim/obj/

@@ -28,6 +28,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 const SHARED_REFS = ['physics.json', 'combat.json', 'environment.json', 'items.json'];
+// Generated-part id base — above every id the Heights reference files use, so a
+// custom arena never accidentally inherits a jump pad / healing pad / portal.
+const GEN_ID_BASE = 500000;
 
 // Salt for owner-key / voter hashes. Kept out of the client; stable across
 // restarts so existing maps keep their owners.
@@ -55,6 +58,7 @@ export class MapStore {
     this.maps.set('heights', {
       id: 'heights', name: 'Luminary', author: 'Shedletsky', builtin: true,
       createdAt: 0, blocks: [], spawns: [], scripts: [], tools: [],
+      settings: { starterSword: true, leaderboard: ['KOs', 'Wipeouts'] },
       plays: 0, likes: 0, dislikes: 0, votes: {}, ownerKey: null,
     });
     // load user maps
@@ -73,6 +77,7 @@ export class MapStore {
   _normalizeLoaded(def) {
     def.scripts = Array.isArray(def.scripts) ? def.scripts : [];
     def.tools = Array.isArray(def.tools) ? def.tools : [];
+    def.settings = sanitizeSettings(def.settings);
     def.plays = Number.isFinite(def.plays) ? def.plays : 0;
     def.likes = Number.isFinite(def.likes) ? def.likes : 0;
     def.dislikes = Number.isFinite(def.dislikes) ? def.dislikes : 0;
@@ -143,6 +148,7 @@ export class MapStore {
       spawns: sanitizeSpawns(def.spawns),
       tools: sanitizeTools(def.tools),
       scripts: sanitizeScripts(def.scripts),
+      settings: sanitizeSettings(def.settings),
       plays: 0, likes: 0, dislikes: 0, votes: {},
     };
     if (!clean.spawns.length) clean.spawns = [[0, 1, 0]]; // always at least one spawn
@@ -163,6 +169,7 @@ export class MapStore {
     if (def.spawns != null) { m.spawns = sanitizeSpawns(def.spawns); if (!m.spawns.length) m.spawns = [[0, 1, 0]]; }
     if (def.tools != null) m.tools = sanitizeTools(def.tools);
     if (def.scripts != null) m.scripts = sanitizeScripts(def.scripts);
+    if (def.settings != null) m.settings = sanitizeSettings(def.settings);
     m.updatedAt = Date.now();
     this._dropGenerated(id);
     await this._persistNow(id);
@@ -229,7 +236,43 @@ export class MapStore {
     return this.materialize(id);
   }
 
-  // Build a refDir on disk (arena.json generated + shared files reused).
+  // Load + cache one of the original reference files.
+  async _loadRef(name) {
+    this._refCache = this._refCache || {};
+    if (!this._refCache[name]) this._refCache[name] = JSON.parse(await fsp.readFile(path.join(this.refDir, name), 'utf8'));
+    return this._refCache[name];
+  }
+
+  // The map-independent reference files are NOT safe to reuse verbatim for a
+  // custom map: they are full of Heights-specific content keyed by part id and
+  // position — jump pads (physics.json jumpPads, whose boardId 2 collides with
+  // our first generated part and launches players), healing pads / portals
+  // (environment.json), item pickups (items.json), and the auto-equipped starter
+  // sword (combat/items starterId). We clone them and strip all of that, so a
+  // custom game is a clean slate. The sword is opt-in per game.
+  async cleanRefs(def) {
+    // The shared reference files stay VERBATIM: the sim validates them tightly
+    // (editing jumpPads breaks the physics profile; zeroing the starter item
+    // gives "Invalid item catalog" — the engine requires every player to spawn
+    // with a valid starter tool). Instead, generateArena numbers our parts in a
+    // high id range (>= GEN_ID_BASE) that never collides with the Heights ids
+    // the jump pads / healing pads / portals / pickups reference — so all of
+    // that Heights content silently points at parts that don't exist in a custom
+    // arena and stays inert. That kills the baseplate-is-a-jumppad launch.
+    //
+    // The starter sword therefore can't be removed by editing refs. The clean,
+    // per-game way to drop it (settings.starterSword === false) is a server
+    // script calling the sim's RemoveTool after a player spawns — see the Tier B
+    // server-scripting work. Until that lands the sword is always given.
+    return {
+      'physics.json': await this._loadRef('physics.json'),
+      'environment.json': await this._loadRef('environment.json'),
+      'combat.json': await this._loadRef('combat.json'),
+      'items.json': await this._loadRef('items.json'),
+    };
+  }
+
+  // Build a refDir on disk (arena.json generated + cleaned shared files).
   async materialize(id) {
     if (id === 'heights') return this.refDir;
     const def = this.maps.get(id);
@@ -237,10 +280,10 @@ export class MapStore {
     const out = path.join(this.genDir, id);
     await fsp.mkdir(out, { recursive: true });
     await fsp.writeFile(path.join(out, 'arena.json'), JSON.stringify(this.generateArena(def)));
-    // reuse the map-independent reference files
+    const refs = await this.cleanRefs(def);
     for (const f of SHARED_REFS) {
-      const dst = path.join(out, f);
-      try { await fsp.copyFile(path.join(this.refDir, f), dst); } catch (e) { this.log(`[maps] copy ${f}: ${e.message}`); }
+      try { await fsp.writeFile(path.join(out, f), JSON.stringify(refs[f])); }
+      catch (e) { this.log(`[maps] write ${f}: ${e.message}`); }
     }
     return out;
   }
@@ -281,7 +324,9 @@ export class MapStore {
     const parts = [];
     const physParts = [];
     const spawns = [];
-    let id = 2;
+    // Start ids high so they never collide with the Heights ids referenced by
+    // the shared physics.json jump pads / environment pads / item pickups.
+    let id = GEN_ID_BASE;
 
     const addBox = (pos, size, { motion = 'static' } = {}) => {
       const pid = id++;
@@ -440,6 +485,18 @@ function sanitizeTools(tools) {
     starter: !!t.starter,
     script: t.script ? String(t.script).slice(0, 20000) : '',
   }));
+}
+
+// Per-game settings. starterSword gives the SFOTH sword on spawn (off by
+// default — most games aren't sword fights). leaderboard is a list of custom
+// stat column names games can track via scripts (replacing SFOTH's KOs/Wipeouts).
+function sanitizeSettings(s) {
+  s = s && typeof s === 'object' ? s : {};
+  const lb = Array.isArray(s.leaderboard) ? s.leaderboard.slice(0, 6).map((c) => String(c).slice(0, 16)) : [];
+  return {
+    starterSword: s.starterSword === true,
+    leaderboard: lb,
+  };
 }
 
 // Scripts carry a name, a side (client/server) and source text. We store them

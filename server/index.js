@@ -399,6 +399,7 @@ async function handle(req, res) {
       return sendJson(res, 200, {
         id: m.id, name: m.name, author: m.author, builtin: !!m.builtin,
         blocks: m.blocks || [], spawns: m.spawns || [], tools: m.tools || [], scripts: m.scripts || [],
+        settings: m.settings || { starterSword: false, leaderboard: [] },
         plays: m.plays || 0, likes: m.likes || 0, dislikes: m.dislikes || 0,
         owned: !!(ownerKeyHash(req) && m.ownerKey && m.ownerKey === ownerKeyHash(req)),
         myVote: maps.voteOf(m.id, voterHash(req)),
