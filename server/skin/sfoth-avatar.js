@@ -79,7 +79,7 @@
     { id: 'face', label: 'Face' },
     { id: 'hair', label: 'Hair' },
     { id: 'hats', label: 'Hats' },
-    { id: 'faceacc', label: 'Face' },
+    { id: 'faceacc', label: 'Glasses' },
     { id: 'shirt', label: 'Shirts' },
     { id: 'pants', label: 'Pants' }
   ];
