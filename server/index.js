@@ -170,6 +170,24 @@ function clientIp(req) {
 }
 function voterHash(req) { return hashKey('vote:' + clientIp(req)); }
 
+// Validate a player's broadcast appearance (display data only — colours +
+// short style strings). Keeps it small and safe to echo to other clients.
+function sanitizeAppearance(a) {
+  if (!a || typeof a !== 'object') return null;
+  const b = (v) => Math.max(0, Math.min(255, Math.round(Number(v) || 0)));
+  const col = (c, d) => (Array.isArray(c) && c.length >= 3 ? [b(c[0]), b(c[1]), b(c[2])] : d);
+  const str = (s, n) => (typeof s === 'string' ? s.slice(0, n) : '');
+  return {
+    bodyType: a.bodyType === 'slim' ? 'slim' : 'classic',
+    skin: col(a.skin, [255, 204, 153]),
+    face: str(a.face, 16),
+    shirt: { color: col(a.shirt && a.shirt.color, [0, 162, 255]), pattern: str(a.shirt && a.shirt.pattern, 16) },
+    pants: { color: col(a.pants && a.pants.color, [45, 71, 156]), pattern: str(a.pants && a.pants.pattern, 16) },
+    hair: { style: str(a.hair && a.hair.style, 16), color: col(a.hair && a.hair.color, [60, 40, 28]) },
+    hat: str(a.hat, 16), faceAcc: str(a.faceAcc, 16),
+  };
+}
+
 // The map this browser currently has selected (governs scene/arena serving).
 function selectedMap(req) {
   const id = cookie(req, 'lum_map');
@@ -314,34 +332,78 @@ function broadcastStream(req, res) {
 const CLIENT_INJECT = `
 <script>
 (function(){
-  // Apply the saved avatar's COLOURS (skin / shirt / pants) to the player's OWN
-  // in-game character. The engine builds every human with three shared materials
-  // and transmits no per-player appearance, so we capture our own player id from
-  // the join response and hand the patched character builder a recoloured clone
-  // for just our character; everyone else keeps the default look. Clothing
-  // patterns and 3D accessories can't be shown in-game (not transmitted).
-  try {
-    var _of = window.fetch;
-    window.fetch = function(u){
-      var p = _of.apply(this, arguments);
-      try { if (String(u).indexOf('/api/guest/join') >= 0) p.then(function(r){ try { r.clone().json().then(function(j){ if (j && j.playerId != null) window.__lumLocalId = j.playerId; }).catch(function(){}); } catch(e){} }); } catch(e){}
-      return p;
-    };
-  } catch(e){}
+  // In-game avatars for EVERY player. The engine builds each human from three
+  // shared materials and transmits no per-player appearance, so we run our own
+  // tiny presence channel: each client POSTs its saved look (+ its public friend
+  // code) to /api/appearance keyed by its session, and every client polls the
+  // room's presence back into window.__lumApp (playerId -> appearance). The
+  // patched character builder then asks __lumCharMat for a recoloured material
+  // clone per part, per player. Only COLOURS (skin / shirt / pants) can be shown
+  // in-game — clothing patterns and 3D accessories aren't representable in the
+  // captured engine (BABYLON isn't reachable) so they stay in the lobby avatar.
+  var _of = window.fetch;
+  var S = { session:'', pid:null, room:null, poll:null, tick:0 };
+  window.__lumApp = {};        // playerId -> appearance (all players in room)
+  window.__lumPresence = {};   // playerId -> { code, name }  (for in-game add-friend)
+
+  function avatar(){ try { return JSON.parse(localStorage.getItem('luminary_avatar')); } catch(e){ return null; } }
+
+  function broadcast(){
+    if (!S.session) return;
+    try {
+      _of('/api/appearance', { method:'POST',
+        headers:{ 'content-type':'application/json', 'authorization':'Bearer ' + S.session },
+        body: JSON.stringify({ appearance: avatar(), code: window.__lumMyCode || '' }) }).catch(function(){});
+    } catch(e){}
+  }
+  function pull(){
+    if (!S.room) return;
+    try {
+      _of('/api/appearance?room=' + encodeURIComponent(S.room)).then(function(r){ return r.json(); }).then(function(j){
+        if (!j || !j.players) return;
+        var app = {}, pres = {};
+        for (var k in j.players){ var p = j.players[k]; app[k] = p.appearance; pres[k] = { code: p.code, name: p.name }; }
+        window.__lumApp = app; window.__lumPresence = pres;
+      }).catch(function(){});
+    } catch(e){}
+  }
+
+  // Capture our session / player id / room from the join response, then start
+  // broadcasting our look and polling everyone else's.
+  window.fetch = function(u){
+    var p = _of.apply(this, arguments);
+    try {
+      if (String(u).indexOf('/api/guest/join') >= 0) p.then(function(r){ try { r.clone().json().then(function(j){
+        if (j){
+          if (j.session) S.session = j.session;
+          if (j.playerId != null){ S.pid = j.playerId; window.__lumLocalId = j.playerId; }
+          if (j.roomId) S.room = j.roomId;
+        }
+        broadcast(); pull();
+        if (!S.poll) S.poll = setInterval(function(){ S.tick++; pull(); if (S.tick % 3 === 0) broadcast(); }, 2500);
+      }).catch(function(){}); } catch(e){} });
+    } catch(e){}
+    return p;
+  };
+
   window.__lumMats = {};
+  function matFor(def, part, col){
+    if (!col || col.length < 3 || !def) return def;
+    var key = part + ':' + col.join(',');
+    if (window.__lumMats[key]) return window.__lumMats[key];
+    var m = def.clone ? def.clone('lum-' + key) : def;
+    var apply = function(c){ if (c){ c.r = col[0]/255; c.g = col[1]/255; c.b = col[2]/255; } };
+    apply(m.diffuseColor); apply(m.albedoColor);
+    window.__lumMats[key] = m; return m;
+  }
   window.__lumCharMat = function(part, mesh, pid, zx, Bx, Rx){
     var def = part === 'Torso' ? zx : (part.indexOf('Leg') >= 0 ? Bx : Rx);
     try {
-      if (pid !== window.__lumLocalId) return def;
-      var a = JSON.parse(localStorage.getItem('luminary_avatar')); if (!a) return def;
-      var col = part === 'Torso' ? (a.shirt && a.shirt.color) : (part.indexOf('Leg') >= 0 ? (a.pants && a.pants.color) : a.skin);
-      if (!col || col.length < 3) return def;
-      var key = part + ':' + col.join(',');
-      if (window.__lumMats[key]) return window.__lumMats[key];
-      var m = def.clone ? def.clone('lum-' + key) : def;
-      var apply = function(c){ if (c){ c.r = col[0]/255; c.g = col[1]/255; c.b = col[2]/255; } };
-      apply(m.diffuseColor); apply(m.albedoColor);
-      window.__lumMats[key] = m; return m;
+      var a = (window.__lumApp && window.__lumApp[pid]) || (pid === window.__lumLocalId ? avatar() : null);
+      if (!a) return def;
+      var col = part === 'Torso' ? (a.shirt && a.shirt.color)
+              : (part.indexOf('Leg') >= 0 ? (a.pants && a.pants.color) : a.skin);
+      return matFor(def, part, col);
     } catch(e){ return def; }
   };
 })();
@@ -417,6 +479,7 @@ async function handle(req, res) {
       case 'api/lobby': return sendJson(res, 200, game.lobby());
       case 'api/maps': return sendJson(res, 200, { maps: maps.list(ownerKeyHash(req)), selected: selectedMap(req) });
       case 'api/servers': return sendJson(res, 200, game.serverList(url.searchParams.get('map') || selectedMap(req)));
+      case 'api/appearance': return sendJson(res, 200, { players: game.presenceView(url.searchParams.get('room') || null) });
       case 'api/play-count': return sendJson(res, 200, { totalPlays: game.totalPlays });
       case 'api/availability': return sendJson(res, 200, { disabled: false, message: 'The Heights are taking a break. SFOTH is temporarily unavailable. Please check back later.' });
       case 'api/broadcast/stream': return broadcastStream(req, res);
@@ -486,7 +549,15 @@ async function handle(req, res) {
     const name = chosenName(req); // '' when unset — the store keeps the existing name then
     const body = await readJson(req);
     switch (api) {
-      case 'api/social/sync': return sendJson(res, 200, social.sync(kh, name));
+      case 'api/social/sync': {
+        const view = social.sync(kh, name);
+        // annotate friends who are currently in a game so we can offer "Join"
+        for (const f of view.friends) {
+          const p = game.presenceByCode(f.code);
+          if (p) { const m = maps.get(p.mapId); f.playing = { mapId: p.mapId, room: p.room, mapName: (m && m.name) || p.mapId }; }
+        }
+        return sendJson(res, 200, view);
+      }
       case 'api/social/add': return sendJson(res, 200, social.add(kh, body.code, name));
       case 'api/social/accept': return sendJson(res, 200, social.accept(kh, body.code, name));
       case 'api/social/remove': return sendJson(res, 200, social.remove(kh, body.code));
@@ -522,6 +593,12 @@ async function handle(req, res) {
       case 'api/guest/ice': {
         if (!bearer(req)) return sendJson(res, 401, { error: 'unauthorized' });
         return sendJson(res, 200, { iceServers: ICE_SERVERS });
+      }
+      case 'api/appearance': {
+        // a player broadcasts their look + social code (authenticated by session)
+        const body = await readJson(req);
+        game.setPresence(bearer(req), { appearance: sanitizeAppearance(body.appearance), code: body.code });
+        return sendJson(res, 200, { ok: true });
       }
       case 'api/guest/leave': {
         game.leave(bearer(req));

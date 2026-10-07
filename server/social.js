@@ -38,12 +38,25 @@ export class SocialStore {
     }, 400);
   }
 
-  code(hash) { return hash.slice(0, 8).toUpperCase().replace(/(.{4})(.{4})/, '$1-$2'); }
+  // A random, shareable friend code — DELIBERATELY unrelated to the user's
+  // ownership key (hash). The key must never be derivable from anything public:
+  // it authorizes editing/deleting that user's maps, so leaking it (even a slice
+  // of its hash) would let someone impersonate them. The code is just a public
+  // handle; it reveals nothing about the key.
+  _newCode() {
+    const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars
+    for (;;) {
+      let c = '';
+      for (let i = 0; i < 8; i++) c += A[Math.floor(Math.random() * A.length)];
+      c = c.slice(0, 4) + '-' + c.slice(4);
+      if (!this.byCode.has(c)) return c;
+    }
+  }
 
   ensure(hash, name) {
     let u = this.users.get(hash);
     if (!u) {
-      u = { hash, name: (name || 'Player').slice(0, 20), code: this.code(hash), friends: [], incoming: [], outgoing: [], dms: {}, lastSeen: 0 };
+      u = { hash, name: (name || 'Player').slice(0, 20), code: this._newCode(), friends: [], incoming: [], outgoing: [], dms: {}, lastSeen: 0 };
       this.users.set(hash, u);
       this.byCode.set(u.code, hash);
     }

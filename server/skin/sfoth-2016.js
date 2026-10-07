@@ -476,6 +476,48 @@
     // A health bar at the top of the player list (Roblox-style). Mirror the
     // engine's #health-value / #health-fill into the list header.
     mountHealthInList();
+
+    // Add-friend affordance on every other player's roster row.
+    mountRosterAddFriend();
+  }
+
+  // Click a player on the in-game list to send them a friend request. The
+  // engine's roster rows are .player-row > .player-name (your own row carries
+  // .own). We can't read the engine's internal player id off the row, so we
+  // resolve the displayed name against the live presence map (playerId ->
+  // { code, name }) published by the appearance channel, and add by that code.
+  function mountRosterAddFriend() {
+    var list = document.getElementById('player-list');
+    if (!list) return;
+    var decorate = function () {
+      list.querySelectorAll('.player-row:not(.own)').forEach(function (row) {
+        if (row.querySelector('.lum-addfr')) return;
+        var nm = row.querySelector('.player-name');
+        if (!nm) return;
+        var b = document.createElement('button');
+        b.className = 'lum-addfr'; b.type = 'button'; b.title = 'Add friend'; b.textContent = '+';
+        b.onclick = function (e) {
+          e.stopPropagation(); e.preventDefault();
+          addFriendByName((nm.textContent || '').replace(/^◌\s*/, '').trim(), b);
+        };
+        row.appendChild(b);
+      });
+    };
+    if (!list.dataset.lumFrObs) { list.dataset.lumFrObs = '1'; try { new MutationObserver(decorate).observe(list, { childList: true, subtree: true }); } catch (e) {} }
+    decorate();
+  }
+  function addFriendByName(name, btn) {
+    var pres = window.__lumPresence || {}, code = null;
+    for (var pid in pres) { if (pres[pid] && pres[pid].name === name && pres[pid].code) { code = pres[pid].code; break; } }
+    if (!code) { if (btn) { btn.textContent = '…'; btn.title = 'Not reachable yet — try again in a moment'; setTimeout(function () { btn.textContent = '+'; btn.title = 'Add friend'; }, 1500); } return; }
+    fetch('/api/social/add', { method: 'POST', headers: Object.assign({ 'content-type': 'application/json' }, keyHeaders()), body: JSON.stringify({ code: code }) })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!btn) return;
+        var ok = d.status === 'friends' || d.status === 'requested';
+        btn.textContent = ok ? '✓' : d.status === 'self' ? '—' : '!';
+        btn.title = d.status === 'friends' ? 'Friends' : d.status === 'requested' ? 'Request sent' : d.status === 'self' ? "That's you" : d.status === 'friends' ? 'Already friends' : 'Could not add';
+        btn.disabled = ok || d.status === 'self';
+      }).catch(function () {});
   }
 
   function mountHealthInList() {
@@ -509,7 +551,7 @@
     }
     function start() { if (S.pollTimer) return; lumKey(); poll(); S.pollTimer = setInterval(poll, 6000); }
     function poll() {
-      api('sync', {}).then(function (d) { if (d && d.code) { S.data = d; badge(d); if (S.root && S.root.classList.contains('open')) renderMain(); } }).catch(function () {});
+      api('sync', {}).then(function (d) { if (d && d.code) { S.data = d; try { window.__lumMyCode = d.code; } catch (e) {} badge(d); if (S.root && S.root.classList.contains('open')) renderMain(); } }).catch(function () {});
     }
     function badge(d) {
       var b = document.getElementById('rbx-friend-badge'); if (!b) return;
@@ -550,8 +592,20 @@
       rq.innerHTML = (d.incoming && d.incoming.length) ? ('<div class="fr-list-title">Requests</div>' + d.incoming.map(function (f) { return '<div class="fr-req"><span>' + esc(f.name) + ' <small>' + f.code + '</small></span><button data-accept="' + f.code + '">Accept</button></div>'; }).join('')) : '';
       rq.querySelectorAll('[data-accept]').forEach(function (b) { b.onclick = function () { api('accept', { code: b.dataset.accept }).then(poll); }; });
       var list = S.root.querySelector('#fr-list');
-      list.innerHTML = (d.friends && d.friends.length) ? d.friends.map(function (f) { return '<div class="fr-item' + (S.openCode === f.code ? ' active' : '') + '" data-code="' + f.code + '"><span class="fr-dot' + (f.online ? ' on' : '') + '"></span><span class="fr-nm">' + esc(f.name) + '</span>' + (f.unread ? '<span class="fr-unread">' + f.unread + '</span>' : '') + '</div>'; }).join('') : '<div class="fr-empty">No friends yet — share your code above.</div>';
+      list.innerHTML = (d.friends && d.friends.length) ? d.friends.map(function (f) {
+        var playing = f.playing ? ('<span class="fr-playing" title="In ' + esc(f.playing.mapName) + ' · ' + esc(f.playing.room) + '">● ' + esc(f.playing.mapName) + '</span>') : '';
+        var joinBtn = f.playing ? ('<button class="fr-join" data-join="' + f.code + '">Join</button>') : '';
+        return '<div class="fr-item' + (S.openCode === f.code ? ' active' : '') + '" data-code="' + f.code + '">' +
+          '<span class="fr-dot' + (f.online ? ' on' : '') + '"></span>' +
+          '<span class="fr-nm">' + esc(f.name) + playing + '</span>' +
+          (f.unread ? '<span class="fr-unread">' + f.unread + '</span>' : '') + joinBtn + '</div>';
+      }).join('') : '<div class="fr-empty">No friends yet — share your code above.</div>';
       list.querySelectorAll('.fr-item').forEach(function (it) { it.onclick = function () { openChat(it.dataset.code); }; });
+      list.querySelectorAll('[data-join]').forEach(function (b) { b.onclick = function (e) {
+        e.stopPropagation();
+        var f = (S.data.friends || []).find(function (x) { return x.code === b.dataset.join; });
+        if (f && f.playing) joinFriend(f.playing);
+      }; });
     }
     function openChat(code) {
       S.openCode = code; renderMain();
@@ -577,6 +631,20 @@
       inp.value = '';
       api('dm', { code: S.openCode, text: t }).then(function () { loadChat(); });
     }
+    // Join a friend who's currently in a game. If they're on the map this
+    // browser already has selected, jump straight into their server; otherwise
+    // switch to their map first (stash the target server so we auto-join after
+    // the reload the map switch requires).
+    function joinFriend(playing) {
+      if (!playing || !playing.mapId || !playing.room) return;
+      if (playing.mapId === GAMES.selected) { close(); joinRoom(playing.room); return; }
+      try { sessionStorage.setItem('lum_join_room', playing.room); } catch (e) {}
+      try {
+        fetch('/api/maps/select', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: playing.mapId }) })
+          .then(function () { var u = new URL(location.href); u.searchParams.delete('room'); location.href = u.pathname + u.hash; })
+          .catch(function () { location.reload(); });
+      } catch (e) { location.reload(); }
+    }
     function open() { build(); S.root.classList.add('open'); poll(); renderMain(); }
     function close() { if (S.root) S.root.classList.remove('open'); clearInterval(S.chatTimer); }
     return { open: open, close: close, start: start };
@@ -592,6 +660,11 @@
     buildSidebar();
     mountServerHead();
     rebrand();
+    // Resume a pending "join friend" after the map-switch reload.
+    try {
+      var pend = sessionStorage.getItem('lum_join_room');
+      if (pend) { sessionStorage.removeItem('lum_join_room'); setTimeout(function () { joinRoom(pend); }, 300); }
+    } catch (e) {}
   }
 
   if (document.readyState !== 'loading') mountLobby();

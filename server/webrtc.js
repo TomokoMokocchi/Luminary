@@ -43,6 +43,7 @@ export class GameServer {
 
     this.sessions = new Map();   // session token -> session record
     this.instances = new Map();  // roomId ("server-N") -> instance
+    this.presence = new Map();   // playerId -> { appearance, code, name, room, mapId }
     this.startTime = Date.now();
     this.nextPlayerId = 500 + Math.floor(Math.random() * 500);
     this.totalPlays = 0;         // real join counter
@@ -194,6 +195,35 @@ export class GameServer {
         if (!rec.state.isOpen || rec.state.isOpen()) for (const f of frags) rec.state.sendMessageBinary(f);
       } catch (e) { if (!this._warned) { this._warned = true; this.log('[snap] send error: ' + e.message); } }
     }
+  }
+
+  // --- player presence: appearance (for in-game avatars) + social code -----
+  setPresence(session, data) {
+    const rec = this.sessions.get(session);
+    if (!rec || rec.closed) return false;
+    this.presence.set(rec.playerId, {
+      appearance: data.appearance || null,
+      code: (data.code || '').toString().slice(0, 12),
+      name: rec.nickname,
+      room: rec.roomId,
+      mapId: rec.mapId,
+    });
+    return true;
+  }
+  // { playerId: { appearance, code, name } } for players (optionally one room).
+  presenceView(room) {
+    const out = {};
+    for (const [pid, p] of this.presence) {
+      if (room && p.room !== room) continue;
+      out[pid] = { appearance: p.appearance, code: p.code, name: p.name };
+    }
+    return out;
+  }
+  // Where is the player with this social code right now? (for "join a friend")
+  presenceByCode(code) {
+    if (!code) return null;
+    for (const p of this.presence.values()) if (p.code === code) return p;
+    return null;
   }
 
   // Live lobby view built from every connected player, grouped by instance.
@@ -403,6 +433,7 @@ export class GameServer {
     rec.closed = true;
     if (rec.connectTimer) { clearTimeout(rec.connectTimer); rec.connectTimer = null; }
     this.sessions.delete(session);
+    this.presence.delete(rec.playerId);
     const inst = rec.inst;
     if (inst) {
       inst.players.delete(session);
