@@ -1,0 +1,1 @@
+cd "server" && pkill -f "node index.js"; sleep 1; PORT=80 sudo node index.js
