@@ -419,3 +419,22 @@ body.studio-open{overflow:hidden}
 .st-sc-docs code{background:#0e0f12;color:#9effa0;padding:1px 4px;border-radius:3px;font-family:'Consolas',monospace;font-size:11.5px}
 .st-sc-docs pre{background:#0b0c0f;color:#dfe6e9;padding:9px 11px;border-radius:6px;overflow:auto;font-family:'Consolas',monospace;font-size:11.5px;margin:6px 0}
 .st-sc-docs .st-docnote{color:var(--ink-soft);font-size:11.5px;margin-top:10px}
+
+/* ======================================================================== */
+/*  IN-GAME HUD TWEAKS                                                        */
+/* ======================================================================== */
+/* remove the bottom-left in-game "Stats" performance button */
+#stats-button{display:none!important}
+/* your own overhead nameplate (name + health) is hidden; others still show */
+#nametags .nameplate.lum-self{display:none!important}
+/* SFOTH-only leaderboard columns (KOs / Wipeouts) are hidden on custom games */
+body.lum-custom #player-list .player-columns span:nth-child(2),
+body.lum-custom #player-list .player-columns span:nth-child(3),
+body.lum-custom #player-rows .player-row span:nth-child(2),
+body.lum-custom #player-rows .player-row span:nth-child(3){display:none!important}
+/* health bar at the top of the player list (Roblox-style) */
+#lum-list-health{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.12);font-family:var(--font)}
+#lum-list-health .lh-label{font-size:11px;font-weight:800;letter-spacing:.06em;color:#cfe8ff;text-transform:uppercase}
+#lum-list-health .lh-track{flex:1;height:10px;background:rgba(0,0,0,.4);border-radius:5px;overflow:hidden}
+#lum-list-health .lh-fill{display:block;height:100%;width:100%;background:linear-gradient(var(--green-top),var(--green-bot));transition:width .15s}
+#lum-list-health .lh-val{font-size:12px;font-weight:800;color:#8fe08f;min-width:30px;text-align:right}

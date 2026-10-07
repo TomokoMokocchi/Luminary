@@ -419,10 +419,62 @@
       new MutationObserver(function () {
         if (document.body.classList.contains('playing')) {
           fire();
+          inGameTweaks(); // the HUD (nametags, health, stats button) only exists while playing
           if (window.LuminaryScripts && GAMES.selected && GAMES.selected !== 'heights') window.LuminaryScripts.runForMap(GAMES.selected, getName() || 'Player');
         } else if (window.LuminaryScripts) { window.LuminaryScripts.stopAll(); }
       }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
     } catch (e) {}
+  }
+
+  // ---- in-game HUD tweaks ------------------------------------------------
+  function inGameTweaks() {
+    // Don't capture/lock the mouse on click by default — only an intentional
+    // shift-lock should grab the pointer. The client treats any stored value
+    // other than 'off' as "lock on click", so default it to 'off' (the player
+    // can still turn it on in the in-game settings).
+    try { if (localStorage.getItem('sfoth:lock-mouse-on-click') == null) localStorage.setItem('sfoth:lock-mouse-on-click', 'off'); } catch (e) {}
+
+    // mark the body so CSS can drop SFOTH-only UI (KOs/Wipeouts) on custom games
+    var custom = GAMES.selected && GAMES.selected !== 'heights';
+    document.body.classList.toggle('lum-custom', !!custom);
+
+    // Hide YOUR OWN overhead nameplate (name + health), keep everyone else's —
+    // like Roblox. Nameplates are .nameplate divs in #nametags; match the one
+    // whose text starts with your username.
+    var me = getName();
+    var tag = function () {
+      if (!me) return;
+      document.querySelectorAll('#nametags .nameplate').forEach(function (np) {
+        var txt = (np.textContent || '').trim();
+        np.classList.toggle('lum-self', txt === me || txt.indexOf(me + ' ') === 0 || txt.indexOf(me) === 0);
+      });
+    };
+    var nt = document.getElementById('nametags');
+    if (nt && !nt.dataset.lumObs) { nt.dataset.lumObs = '1'; try { new MutationObserver(tag).observe(nt, { childList: true, subtree: true, characterData: true }); } catch (e) {} }
+    tag();
+
+    // A health bar at the top of the player list (Roblox-style). Mirror the
+    // engine's #health-value / #health-fill into the list header.
+    mountHealthInList();
+  }
+
+  function mountHealthInList() {
+    var list = document.getElementById('player-list');
+    if (!list || document.getElementById('lum-list-health')) { syncListHealth(); return; }
+    var hp = document.createElement('div'); hp.id = 'lum-list-health';
+    hp.innerHTML = '<span class="lh-label">Health</span><div class="lh-track"><i class="lh-fill"></i></div><span class="lh-val">100</span>';
+    var title = list.querySelector('.players-title');
+    if (title && title.nextSibling) list.insertBefore(hp, title.nextSibling); else list.insertBefore(hp, list.firstChild);
+    syncListHealth();
+    try { new MutationObserver(syncListHealth).observe(document.getElementById('health') || document.body, { attributes: true, childList: true, subtree: true, characterData: true }); } catch (e) {}
+  }
+  function syncListHealth() {
+    var fillSrc = document.getElementById('health-fill');
+    var valSrc = document.getElementById('health-value');
+    var fill = document.querySelector('#lum-list-health .lh-fill');
+    var val = document.querySelector('#lum-list-health .lh-val');
+    if (fill && fillSrc) fill.style.width = (fillSrc.style.width || '100%');
+    if (val && valSrc) val.textContent = (valSrc.textContent || '100').trim();
   }
 
   async function mountLobby() {
@@ -430,6 +482,7 @@
     mountSetName();
     relabelPlay();
     watchPlaying();
+    inGameTweaks();
     await fetchGames();
     buildSidebar();
     mountServerHead();
