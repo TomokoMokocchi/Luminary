@@ -460,19 +460,20 @@ body:not(.playing) #join-screen main{
   max-width:none!important;
   margin:calc(var(--nav-h) + 30px) 24px 24px calc(var(--side-w) + 48px)!important;
   padding:0!important;
-  display:flex!important;align-items:stretch;gap:18px;flex-wrap:wrap;
+  display:flex!important;align-items:flex-start;gap:18px;flex-wrap:wrap;
 }
-body:not(.playing) .lobby-hero{flex:0 0 440px;max-width:440px;align-self:flex-start}
+body:not(.playing) .lobby-hero{flex:0 0 440px;max-width:440px}
 /* the whole play card rounds cleanly now the map frame is gone */
 body:not(.playing) .hero-copy{border-radius:10px!important;border-bottom:1px solid var(--line)!important}
-/* Server browser as its OWN framed panel beside the play card — same top, same
-   height, and the list scrolls inside instead of pushing the page or overlapping. */
-#lum-servers{flex:1 1 360px;min-width:300px;align-self:stretch;max-height:72vh;
+/* Server browser as its OWN framed panel beside the play card — tops aligned,
+   sized to its contents, and the list scrolls inside (capped) when there are
+   many servers, so it never balloons into a giant empty box or overlaps. */
+#lum-servers{flex:1 1 360px;min-width:300px;max-height:72vh;
   display:flex;flex-direction:column;margin-top:0;
   background:rgba(14,16,20,.6);backdrop-filter:blur(7px);
   -webkit-backdrop-filter:blur(7px);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
 #lum-servers #rbx-serverhead{margin:0 0 10px;flex:0 0 auto}
-#lum-servers .lum-server-list{flex:1 1 auto;min-height:0;overflow-y:auto;margin-top:0;align-content:start}
+#lum-servers .lum-server-list{flex:0 1 auto;min-height:0;overflow-y:auto;margin-top:0;align-content:start}
 body:not(.playing) .lum-server-list{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 .lum-srv{background:rgba(26,28,33,.82)!important}
 .lum-noservers{background:rgba(26,28,33,.55)!important}
