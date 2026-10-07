@@ -468,10 +468,13 @@
 
   // ---- in-game HUD tweaks ------------------------------------------------
   function inGameTweaks() {
-    // Don't capture/lock the mouse on click by default — only an intentional
-    // shift-lock should grab the pointer. The client treats any stored value
-    // other than 'off' as "lock on click", so default it to 'off' (the player
-    // can still turn it on in the in-game settings).
+    // Don't capture the mouse on a normal click by default (free cursor /
+    // drag-to-look); the engine reads 'sfoth:lock-mouse-on-click' and treats any
+    // value other than 'off' as "lock on click", so default it to 'off". Shift
+    // lock is handled separately: a patch in the engine bundle makes toggling
+    // shift lock ON capture the pointer, and toggling it OFF release it back to
+    // whatever this setting says — so the mouse IS captured while shift lock is
+    // on, just not during ordinary play.
     try { if (localStorage.getItem('sfoth:lock-mouse-on-click') == null) localStorage.setItem('sfoth:lock-mouse-on-click', 'off'); } catch (e) {}
 
     // mark the body so CSS can drop SFOTH-only UI (KOs/Wipeouts) on custom games
