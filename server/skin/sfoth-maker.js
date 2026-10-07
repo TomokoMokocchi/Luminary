@@ -120,9 +120,10 @@
       '<div id="st-scripts" class="st-script-modal"><div class="st-script-box">' +
         '<div class="st-script-head"><input id="st-sc-name" class="st-name" maxlength="60" placeholder="Script name">' +
           '<select id="st-sc-type"><option value="server">Server Script</option><option value="client">LocalScript (client)</option></select>' +
-          '<span class="st-sp"></span><button class="st-btn" data-sc="run">Test (client)</button>' +
+          '<span class="st-sp"></span><button class="st-btn" data-sc="docs">📖 Docs</button><button class="st-btn" data-sc="run">▶ Test</button>' +
           '<button class="st-btn primary" data-sc="ok">Done</button><button class="st-btn" data-sc="cancel">Cancel</button></div>' +
-        '<textarea id="st-sc-src" spellcheck="false" placeholder="-- Luminary script&#10;-- client API: Lum.print(), Lum.wait(s), Lum.workspace, Lum.onStep(fn)&#10;Lum.print(\'hello from a script\')"></textarea>' +
+        '<div class="st-script-main"><textarea id="st-sc-src" spellcheck="false" placeholder="// Luminary script (JavaScript, Roblox-style API)\n// print(\'hi\'); make parts, GUIs, sounds, connect events.\nprint(\'hello from a script\')\n\nvar part = Instance.new(\'Part\', workspace)\npart.Position = Vector3.new(0, 10, 0)\npart.Touched.Connect(function(hit){ print(hit.Name, \'touched\') })\n\ngame.Players.PlayerAdded.Connect(function(p){ print(p.Name, \'joined\') })"></textarea>' +
+          '<div id="st-sc-docs" class="st-sc-docs"></div></div>' +
         '<div id="st-sc-out" class="st-sc-out"></div>' +
       '</div></div>';
     document.body.appendChild(root);
@@ -266,9 +267,49 @@
   // =========================================================================
   //  OBJECTS
   // =========================================================================
+  // --- surface textures (studs on baseplates, the logo on spawns) ---------
+  var _texCache = {};
+  function studTexture(rgb) {
+    var key = 'stud' + rgb.join(','); if (_texCache[key]) return _texCache[key];
+    var c = document.createElement('canvas'); c.width = c.height = 128; var g = c.getContext('2d');
+    g.fillStyle = 'rgb(' + rgb.join(',') + ')'; g.fillRect(0, 0, 128, 128);
+    for (var y = 16; y < 128; y += 32) for (var x = 16; x < 128; x += 32) {
+      g.beginPath(); g.arc(x, y, 9, 0, 7); g.fillStyle = 'rgba(255,255,255,.18)'; g.fill();
+      g.beginPath(); g.arc(x + 1, y + 1, 9, 0, 7); g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 2; g.stroke();
+    }
+    var t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.needsUpdate = true; _texCache[key] = t; return t;
+  }
+  function spawnTopTexture() {
+    if (_texCache.spawn) return _texCache.spawn;
+    var c = document.createElement('canvas'); c.width = c.height = 128; var g = c.getContext('2d');
+    g.fillStyle = '#d7a300'; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#f5cd30'; g.fillRect(6, 6, 116, 116);
+    // classic spawn logo: white ring + arrow
+    g.strokeStyle = '#ffffff'; g.lineWidth = 7; g.beginPath(); g.arc(64, 64, 34, 0, 7); g.stroke();
+    g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(64, 34); g.lineTo(80, 64); g.lineTo(70, 64); g.lineTo(70, 92); g.lineTo(58, 92); g.lineTo(58, 64); g.lineTo(48, 64); g.closePath(); g.fill();
+    var t = new THREE.CanvasTexture(c); t.needsUpdate = true; _texCache.spawn = t; return t;
+  }
+  // Build the material(s) for an object: plain colour, studded baseplate, or a
+  // spawn pad with the logo on its top face.
+  function materialsFor(o) {
+    if (o.kind === 'spawn') {
+      var side = new THREE.MeshLambertMaterial({ color: col(o.color) });
+      var top = new THREE.MeshLambertMaterial({ map: spawnTopTexture() });
+      // BoxGeometry face order: +X,-X,+Y,-Y,+Z,-Z  (index 2 = top)
+      return [side, side, top, side, side, side];
+    }
+    var isBase = o.name === 'Baseplate' || o.size[0] >= 100;
+    if (isBase) {
+      var tex = studTexture(o.color); tex = tex.clone(); tex.needsUpdate = true;
+      tex.repeat.set(Math.max(1, o.size[0] / 4), Math.max(1, o.size[2] / 4));
+      return new THREE.MeshLambertMaterial({ map: tex });
+    }
+    return new THREE.MeshLambertMaterial({ color: col(o.color) });
+  }
+
   function makeMesh(o) {
     var geo = new THREE.BoxGeometry(o.size[0], o.size[1], o.size[2]);
-    var mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: col(o.color) }));
+    var mesh = new THREE.Mesh(geo, materialsFor(o));
     mesh.position.set(o.pos[0], o.pos[1], o.pos[2]);
     mesh.userData.uid = o.uid;
     var edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22 }));
@@ -451,8 +492,32 @@
       if (b.dataset.sc === 'cancel') closeScript();
       else if (b.dataset.sc === 'ok') saveScript();
       else if (b.dataset.sc === 'run') testScript();
+      else if (b.dataset.sc === 'docs') toggleDocs();
     });
   }
+  function toggleDocs() {
+    var d = root.querySelector('#st-sc-docs');
+    if (d.classList.contains('open')) { d.classList.remove('open'); return; }
+    if (!d.innerHTML) d.innerHTML = DOCS_HTML;
+    d.classList.add('open');
+  }
+  var DOCS_HTML =
+    '<h3>Luminary scripting</h3>' +
+    '<p>Scripts are <b>JavaScript</b> with a Roblox-style API. Client (LocalScript) code runs in a sandbox in each player\'s browser and drives on-screen GUI and real audio. Waits are awaited: <code>await wait(1)</code>.</p>' +
+    '<h4>Globals</h4><ul>' +
+    '<li><code>game</code>, <code>workspace</code>, <code>game.GetService("Players"|"RunService"|"Lighting"|"StarterGui"|"SoundService"|"ReplicatedStorage"|...)</code></li>' +
+    '<li><code>Instance.new("Part", parent?)</code> — Part, WedgePart, SpawnLocation, Model, Folder, Tool, Sound, Humanoid, ScreenGui, Frame, TextLabel, TextButton, ImageLabel, PointLight, Decal, IntValue, StringValue, BoolValue, …</li>' +
+    '<li><code>Vector3.new(x,y,z)</code> (.Magnitude .Unit .add/.sub/.mul/.Dot/.Lerp), <code>Color3.fromRGB(r,g,b)</code>/<code>.new(r,g,b)</code>, <code>UDim2.new(sx,ox,sy,oy)</code>, <code>CFrame.new(x,y,z)</code>, <code>Enum.*</code></li>' +
+    '<li><code>task.wait(s)</code>, <code>task.spawn(fn)</code>, <code>task.delay(s,fn)</code>, <code>wait(s)</code>, <code>tick()</code>, <code>print()</code>, <code>warn()</code>, <code>math</code>, <code>string</code></li>' +
+    '</ul>' +
+    '<h4>Properties</h4><p>Part: <code>Position</code> <code>Size</code> <code>Color</code> <code>Anchored</code> <code>CanCollide</code> <code>Transparency</code> <code>Material</code>. GUI: <code>Text</code> <code>TextColor3</code> <code>BackgroundColor3</code> <code>Position</code> <code>Size</code> <code>Visible</code>. Sound: <code>SoundId</code> <code>Volume</code> <code>Looped</code>.</p>' +
+    '<h4>Methods</h4><p><code>:Destroy()</code> <code>:Clone()</code> <code>:FindFirstChild(name, recursive?)</code> <code>:FindFirstChildOfClass(cls)</code> <code>:GetChildren()</code> <code>:GetDescendants()</code> <code>:IsA(cls)</code> <code>:GetPropertyChangedSignal(prop)</code> <code>:ClearAllChildren()</code>. Sound: <code>:Play()</code> <code>:Pause()</code> <code>:Stop()</code>.</p>' +
+    '<h4>Events</h4><p><code>inst.ChildAdded</code> <code>.ChildRemoved</code> <code>.Changed</code> <code>.Destroying</code>; Part <code>.Touched</code> <code>.TouchEnded</code>; <code>Players.PlayerAdded</code> <code>.PlayerRemoving</code>; <code>Player.CharacterAdded</code>; <code>Humanoid.Died</code> <code>.HealthChanged</code>; <code>RunService.Heartbeat</code> <code>.Stepped</code> <code>.RenderStepped</code>; <code>TextButton.MouseButton1Click</code>. Connect with <code>sig.Connect(fn)</code>; <code>sig.Wait()</code> returns a promise.</p>' +
+    '<h4>Examples</h4>' +
+    '<pre>// a killbrick\nvar b = Instance.new("Part", workspace)\nb.Position = Vector3.new(0, 5, 0); b.Color = Color3.fromRGB(196,40,28)\nb.Touched.Connect(function(hit){\n  var h = hit.Parent.FindFirstChildOfClass("Humanoid")\n  if (h) h.Health = 0\n})</pre>' +
+    '<pre>// a score GUI that counts up\nvar gui = Instance.new("ScreenGui", game.GetService("StarterGui"))\nvar lbl = Instance.new("TextLabel", gui)\nlbl.Size = UDim2.new(0,200,0,40); lbl.Position = UDim2.new(0,20,0,20)\nlbl.BackgroundColor3 = Color3.fromRGB(0,0,0); lbl.TextColor3 = Color3.fromRGB(255,255,255)\nvar score = 0\ngame.GetService("RunService").Heartbeat.Connect(function(dt){\n  score += dt; lbl.Text = "Score: " + Math.floor(score)\n})</pre>' +
+    '<pre>// background music\nvar s = Instance.new("Sound", workspace)\ns.SoundId = "12222019" // a Roblox asset id (served if available) or a URL\ns.Looped = true; s.Volume = 0.4; s.Play()</pre>' +
+    '<p class="st-docnote">Server (Script) code is stored with your game but runs only where a server runtime exists — this client runtime executes LocalScripts. The world\'s physics is authoritative on the game server, so scripts here add logic, UI, sound and effects on top of it.</p>';
   function openScript(idx) {
     build();
     var modal = root.querySelector('#st-scripts');
@@ -519,18 +584,24 @@
       var it = items[i];
       var cls = it.getAttribute('class');
       var props = directProps(it);
-      if (cls === 'Part' || cls === 'TrussPart' || cls === 'WedgePart' || cls === 'SpawnLocation' || cls === 'Seat' || cls === 'VehicleSeat') {
+      var PART_CLASSES = { Part: 1, TrussPart: 1, WedgePart: 1, CornerWedgePart: 1, MeshPart: 1, UnionOperation: 1, NegateOperation: 1, SpawnLocation: 1, Seat: 1, VehicleSeat: 1, Platform: 1, FlagStand: 1 };
+      if (PART_CLASSES[cls]) {
         var pos = readVector(props, 'CFrame') || readVector(props, 'Position');
         var size = readVector(props, 'size') || readVector(props, 'Size');
         if (!pos || !size) { skipped++; continue; }
         var color = readColor(props);
         var name = readString(props, 'Name') || cls;
-        if (cls === 'SpawnLocation') addObject({ kind: 'spawn', name: name, pos: pos, size: size, color: color || [245, 205, 48] });
+        if (cls === 'SpawnLocation' || cls === 'FlagStand') addObject({ kind: 'spawn', name: name, pos: pos, size: size, color: color || [245, 205, 48] });
         else addObject({ kind: 'block', name: name, pos: pos, size: size, color: color || [163, 162, 165] });
         added++;
+        // a Tool's Handle sometimes carries a Sound/Script — captured below as nested Items
       } else if (cls === 'Tool' || cls === 'HopperBin') {
         var tn = readString(props, 'Name') || 'Tool';
-        addObject({ kind: 'tool', name: tn, pos: [0, 3 + added, 0], size: [1, 4, 1], color: [163, 162, 165], starter: hasAncestorClass(it, 'StarterPack'), script: '' });
+        // pull a LocalScript source out of the tool if present (nested Item)
+        var toolSrc = '';
+        var kids = it.getElementsByTagName('Item');
+        for (var ki = 0; ki < kids.length; ki++) { var kc = kids[ki].getAttribute('class'); if (kc === 'LocalScript' || kc === 'Script') { toolSrc = readString(directProps(kids[ki]), 'Source') || ''; break; } }
+        addObject({ kind: 'tool', name: tn, pos: [0, 3 + added, 0], size: [1, 4, 1], color: [163, 162, 165], starter: hasAncestorClass(it, 'StarterPack'), script: toolSrc });
         added++;
       } else if (cls === 'Script' || cls === 'LocalScript' || cls === 'ModuleScript') {
         var sn = readString(props, 'Name') || cls;

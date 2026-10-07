@@ -305,22 +305,15 @@ export class MapStore {
 
     // Spawns: in the original arena a spawn pad is ONE body that is BOTH a
     // collidable part AND the spawn record, sharing a single id — the player is
-    // placed standing on top of it. Creating a separate overlapping box (a
-    // second body at the same spot, as we used to) makes the player spawn
-    // *inside* a collider and get flung. So we emit one id-matched pad per spawn.
-    let sid = 100000; // keep spawn ids well clear of block ids
+    // placed standing on top of it (heights id 50 is both). Creating a SEPARATE
+    // overlapping box at the same spot (as we used to) makes the player spawn
+    // *inside* a second collider and get flung. So each spawn is a single normal
+    // static box (valid, computed physics) whose id the spawn record reuses.
     const padSize = [6, 1.2, 6];
     for (const s of def.spawns) {
-      const pid = sid++;
       const pos = [s[0], s[1], s[2]];
-      parts.push({
-        id: pid, name: 'SpawnLocation', assemblyId: pid, motion: 'static', shape: 'box',
-        approximateShape: false, frame: { position: pos, rotation: IDENTITY.slice() }, size: padSize.slice(),
-      });
-      physParts.push({
-        id: pid, mass: 0, density: 0.7, friction: 0.5, elasticity: 0, frictionWeight: 1, elasticityWeight: 1,
-        velocity: [0, 0, 0], angularVelocity: [0, 0, 0], climbable: false, canTouch: true, measured: true,
-      });
+      const pid = addBox(pos, padSize.slice()); // real part + valid physics, returns id
+      parts[parts.length - 1].name = 'SpawnLocation';
       spawns.push({ id: pid, frame: { position: pos, rotation: IDENTITY.slice() }, size: padSize.slice(), duration: 3 });
     }
 

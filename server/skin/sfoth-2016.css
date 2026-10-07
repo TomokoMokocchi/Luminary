@@ -399,3 +399,23 @@ body.studio-open{overflow:hidden}
 .av-pkg:hover{background:rgba(0,162,255,.12);border-color:var(--blue)}
 .av-side .av-actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
 @media (max-width:760px){#lum-avatar .av-body{flex-direction:column}#lum-avatar .av-stage{flex:none}#lum-avatar .av-stage canvas{height:300px}}
+
+/* ======================================================================== */
+/*  IN-GAME SCRIPT GUI OVERLAY (ScreenGui rendered by client scripts)        */
+/* ======================================================================== */
+#lum-script-hud{position:fixed;inset:0;z-index:9000;pointer-events:none;font-family:var(--font)}
+#lum-script-hud .lsh-item{position:absolute;box-sizing:border-box;overflow:hidden;white-space:pre-wrap;line-height:1.1}
+
+/* ---- Studio script editor: docs panel ---------------------------------- */
+.st-script-main{flex:1;display:flex;min-height:0}
+#st-sc-src{flex:1}
+.st-sc-docs{display:none;width:0;overflow:auto;background:#15171c;border-left:1px solid var(--line);color:#c7ccd4;font-size:12.5px;line-height:1.5}
+.st-sc-docs.open{display:block;width:46%;padding:12px 14px}
+.st-sc-docs h3{margin:0 0 6px;color:#fff;font-size:15px}
+.st-sc-docs h4{margin:12px 0 4px;color:#9fd0ff;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+.st-sc-docs p{margin:4px 0}
+.st-sc-docs ul{margin:4px 0;padding-left:18px}
+.st-sc-docs li{margin:3px 0}
+.st-sc-docs code{background:#0e0f12;color:#9effa0;padding:1px 4px;border-radius:3px;font-family:'Consolas',monospace;font-size:11.5px}
+.st-sc-docs pre{background:#0b0c0f;color:#dfe6e9;padding:9px 11px;border-radius:6px;overflow:auto;font-family:'Consolas',monospace;font-size:11.5px;margin:6px 0}
+.st-sc-docs .st-docnote{color:var(--ink-soft);font-size:11.5px;margin-top:10px}

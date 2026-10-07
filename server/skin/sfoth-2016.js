@@ -419,7 +419,7 @@
       new MutationObserver(function () {
         if (document.body.classList.contains('playing')) {
           fire();
-          if (window.LuminaryScripts && GAMES.selected && GAMES.selected !== 'heights') window.LuminaryScripts.runForMap(GAMES.selected, {});
+          if (window.LuminaryScripts && GAMES.selected && GAMES.selected !== 'heights') window.LuminaryScripts.runForMap(GAMES.selected, getName() || 'Player');
         } else if (window.LuminaryScripts) { window.LuminaryScripts.stopAll(); }
       }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
     } catch (e) {}
