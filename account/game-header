@@ -1,0 +1,37 @@
+    <header class="site-header" data-game-header="sfoth">
+        <div class="site-header-inner">
+            <div class="brand">
+                    <a class="brand-mark" href="/" aria-label="Shedletsky.com home">S</a>
+                <a class="brand-name" href="/">Shedletsky.com</a>
+            </div>
+            <nav class="primary-nav" aria-label="Primary">
+                <a href="/">Blog</a>
+                    <a href="/projects">Projects</a>
+                <a href="/who-is-shedletsky-anyways">About</a>
+                <a href="/feedback">Feedback</a>
+                    <a class="primary-nav-mobile-utility" href="/subscribe">Subscribe</a>
+                    <a class="primary-nav-mobile-utility" href="/search">Search</a>
+            </nav>
+            <div class="account-status is-authenticated" aria-label="Account status">
+                
+<div class="account-status-summary" data-account-status>
+            <a class="account-status-name" href="/profile/jetray" data-no-enhanced-nav>jetray</a>
+        <a class="account-notifications-link has-unread" title="Notifications" aria-label="Notifications, 1 unread" href="/account/notifications">
+            <svg class="account-notifications-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M6 1h4v2H6zM4 3h2v2H4zm6 0h2v2h-2zM3 5h2v5H3zm8 0h2v5h-2zM2 10h12v2H2zm4 3h4v2H6z" fill="currentColor" />
+            </svg>
+                <span class="account-notifications-count" aria-hidden="true">1</span>
+        </a>
+    <a class="nav-gem-balance" data-gem-balance title="View Gem history" href="/account/gems">
+        <span class="economy-gem-glyph economy-gem-glyph-balance pixel-perfect-svg pixel-perfect-svg-mask" aria-hidden="true" style="--pixel-svg-source-width: 8; --pixel-svg-source-height: 14; --pixel-svg-scale: 2; --pixel-svg-src: url(&quot;/media/legacy-theme/ega-gem.svg&quot;); --pixel-svg-color: var(--economy-gem-color);"></span>
+        <span data-gem-balance-value>3</span>
+    </a>
+</div>
+
+                    <form class="nav-logout" method="post" action="/account/Logout">
+                        
+                        <button type="submit">Log out</button>
+                    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8MLw4A3fvPRJnXKIKGGLVwThfTsjeXgRI0kNV94O-cPgeUrL4sUj-z4sm5XMemSuzllrMbyE1SJleFUdahMls7BSlK9eSgvC_VZTG3YE08YVSsBlYx52mLQjNv546KztsARIug9dyBGKJNrqAw9atc9Fm8IZTCRz6Yhia8TBWzu8fNKtL6KOm9gMYgKyJTn1nQ" /></form>
+            </div>
+        </div>
+    </header>

@@ -1,0 +1,445 @@
+{
+  "formatVersion": 1,
+  "sourceSha256": "a55fd43a905b6cb1d7a6180a461a38640f1e0669338543f0f2dca68a85b9b3d6",
+  "workspaceId": 0,
+  "starterPlayerId": 2851,
+  "gravity": 196.2,
+  "walkSpeed": 16,
+  "jumpPower": 50,
+  "jumpPads": [
+    {
+      "modelId": 1,
+      "boardId": 2,
+      "guideId": 4,
+      "position": [
+        -138,
+        281.5,
+        -170
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 143
+    },
+    {
+      "modelId": 15,
+      "boardId": 16,
+      "guideId": 18,
+      "position": [
+        -195,
+        335.5,
+        230
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 138
+    },
+    {
+      "modelId": 80,
+      "boardId": 81,
+      "guideId": 83,
+      "position": [
+        169,
+        12.5,
+        141
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 138
+    },
+    {
+      "modelId": 1758,
+      "boardId": 1759,
+      "guideId": 1761,
+      "position": [
+        -138,
+        274.5,
+        -140
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 70
+    },
+    {
+      "modelId": 1787,
+      "boardId": 1788,
+      "guideId": 1790,
+      "position": [
+        92,
+        337.7,
+        -115
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 151
+    },
+    {
+      "modelId": 1829,
+      "boardId": 1830,
+      "guideId": 1832,
+      "position": [
+        -157,
+        55.700016,
+        230
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 61
+    },
+    {
+      "modelId": 2226,
+      "boardId": 2227,
+      "guideId": 2229,
+      "position": [
+        -109,
+        274.49997,
+        -170
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 88
+    },
+    {
+      "modelId": 2242,
+      "boardId": 2243,
+      "guideId": 2245,
+      "position": [
+        -171,
+        55.700016,
+        203
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 101
+    },
+    {
+      "modelId": 2256,
+      "boardId": 2257,
+      "guideId": 2259,
+      "position": [
+        -170,
+        114.500015,
+        216
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 101
+    },
+    {
+      "modelId": 2270,
+      "boardId": 2271,
+      "guideId": 2273,
+      "position": [
+        -201,
+        137.49998,
+        202
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 138
+    },
+    {
+      "modelId": 2284,
+      "boardId": 2285,
+      "guideId": 2287,
+      "position": [
+        -184,
+        203.5,
+        229
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 138
+    },
+    {
+      "modelId": 2298,
+      "boardId": 2299,
+      "guideId": 2301,
+      "position": [
+        -196,
+        269.5,
+        213
+      ],
+      "size": [
+        8,
+        1,
+        8
+      ],
+      "height": 138
+    }
+  ],
+  "wobblies": [
+    {
+      "partId": 477,
+      "positionControllerId": 478,
+      "gyroId": 479,
+      "position": [
+        79,
+        245.8,
+        0
+      ],
+      "size": [
+        18,
+        1.2,
+        18
+      ],
+      "positionP": 100000,
+      "savedPositionD": 125000,
+      "positionD": 1000,
+      "maxForce": [
+        400000,
+        400000,
+        400000
+      ],
+      "gyroP": 1,
+      "gyroD": 2,
+      "maxTorque": [
+        400000,
+        0,
+        400000
+      ]
+    },
+    {
+      "partId": 481,
+      "positionControllerId": 482,
+      "gyroId": 483,
+      "position": [
+        99,
+        245.8,
+        0
+      ],
+      "size": [
+        18,
+        1.2,
+        18
+      ],
+      "positionP": 100000,
+      "savedPositionD": 125000,
+      "positionD": 1000,
+      "maxForce": [
+        400000,
+        400000,
+        400000
+      ],
+      "gyroP": 1,
+      "gyroD": 2,
+      "maxTorque": [
+        400000,
+        0,
+        400000
+      ]
+    },
+    {
+      "partId": 740,
+      "positionControllerId": 741,
+      "gyroId": 742,
+      "position": [
+        59,
+        245.8,
+        0
+      ],
+      "size": [
+        18,
+        1.2,
+        18
+      ],
+      "positionP": 100000,
+      "savedPositionD": 125000,
+      "positionD": 1000,
+      "maxForce": [
+        400000,
+        400000,
+        400000
+      ],
+      "gyroP": 1,
+      "gyroD": 2,
+      "maxTorque": [
+        400000,
+        0,
+        400000
+      ]
+    },
+    {
+      "partId": 847,
+      "positionControllerId": 848,
+      "gyroId": 849,
+      "position": [
+        -117,
+        256.6,
+        -48
+      ],
+      "size": [
+        18,
+        1.2,
+        18
+      ],
+      "positionP": 100000,
+      "savedPositionD": 125000,
+      "positionD": 1000,
+      "maxForce": [
+        400000,
+        400000,
+        400000
+      ],
+      "gyroP": 1,
+      "gyroD": 2,
+      "maxTorque": [
+        400000,
+        0,
+        400000
+      ]
+    },
+    {
+      "partId": 851,
+      "positionControllerId": 852,
+      "gyroId": 853,
+      "position": [
+        -117,
+        263.80002,
+        -86
+      ],
+      "size": [
+        18,
+        1.2,
+        18
+      ],
+      "positionP": 100000,
+      "savedPositionD": 125000,
+      "positionD": 1000,
+      "maxForce": [
+        400000,
+        400000,
+        400000
+      ],
+      "gyroP": 1,
+      "gyroD": 2,
+      "maxTorque": [
+        400000,
+        0,
+        400000
+      ]
+    },
+    {
+      "partId": 855,
+      "positionControllerId": 856,
+      "gyroId": 857,
+      "position": [
+        -117,
+        260.2,
+        -67
+      ],
+      "size": [
+        18,
+        1.2,
+        18
+      ],
+      "positionP": 100000,
+      "savedPositionD": 125000,
+      "positionD": 1000,
+      "maxForce": [
+        400000,
+        400000,
+        400000
+      ],
+      "gyroP": 1,
+      "gyroD": 2,
+      "maxTorque": [
+        400000,
+        0,
+        400000
+      ]
+    },
+    {
+      "partId": 861,
+      "positionControllerId": 862,
+      "gyroId": 864,
+      "position": [
+        -117,
+        267.4,
+        -105
+      ],
+      "size": [
+        18,
+        1.2,
+        18
+      ],
+      "positionP": 100000,
+      "savedPositionD": 125000,
+      "positionD": 1000,
+      "maxForce": [
+        400000,
+        400000,
+        400000
+      ],
+      "gyroP": 1,
+      "gyroD": 2,
+      "maxTorque": [
+        400000,
+        0,
+        400000
+      ]
+    },
+    {
+      "partId": 866,
+      "positionControllerId": 867,
+      "gyroId": 868,
+      "position": [
+        -117,
+        271,
+        -124
+      ],
+      "size": [
+        18,
+        1.2,
+        18
+      ],
+      "positionP": 100000,
+      "savedPositionD": 125000,
+      "positionD": 1000,
+      "maxForce": [
+        400000,
+        400000,
+        400000
+      ],
+      "gyroP": 1,
+      "gyroD": 2,
+      "maxTorque": [
+        400000,
+        0,
+        400000
+      ]
+    }
+  ]
+}

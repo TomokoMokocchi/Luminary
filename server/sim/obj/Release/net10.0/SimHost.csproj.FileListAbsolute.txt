@@ -1,0 +1,17 @@
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/bin/Release/net10.0/SimHost.deps.json
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/bin/Release/net10.0/SimHost.runtimeconfig.json
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/bin/Release/net10.0/SimHost.dll
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/bin/Release/net10.0/SimHost.pdb
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/bin/Release/net10.0/BepuPhysics.dll
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/bin/Release/net10.0/BepuUtilities.dll
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/bin/Release/net10.0/SFOTH.Protocol.dll
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/bin/Release/net10.0/SFOTH.Simulation.dll
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/obj/Release/net10.0/SimHost.csproj.AssemblyReference.cache
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/obj/Release/net10.0/SimHost.GeneratedMSBuildEditorConfig.editorconfig
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/obj/Release/net10.0/SimHost.csproj.CoreCompileInputs.cache
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/obj/Release/net10.0/SimHost.csproj.Up2Date
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/obj/Release/net10.0/SimHost.dll
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/obj/Release/net10.0/refint/SimHost.dll
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/obj/Release/net10.0/SimHost.pdb
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/obj/Release/net10.0/SimHost.genruntimeconfig.cache
+/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/obj/Release/net10.0/ref/SimHost.dll

@@ -1,0 +1,746 @@
+{
+  "formatVersion": 2,
+  "sourceSha256": "a55fd43a905b6cb1d7a6180a461a38640f1e0669338543f0f2dca68a85b9b3d6",
+  "safePlate": {
+    "volume": {
+      "partId": 2390,
+      "frame": {
+        "position": [
+          0,
+          94.2,
+          0
+        ],
+        "rotation": [
+          -0,
+          0,
+          1,
+          -0,
+          1,
+          0,
+          -1,
+          0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "size": [
+        64,
+        1.2,
+        64
+      ]
+    },
+    "radius": 64,
+    "checkTicks": 30
+  },
+  "healingPads": [
+    {
+      "volume": {
+        "partId": 732,
+        "frame": {
+          "position": [
+            -124,
+            254.99998,
+            4
+          ],
+          "rotation": [
+            -1,
+            0,
+            0,
+            -0,
+            1,
+            0,
+            -0,
+            0,
+            -1
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": false
+          }
+        },
+        "size": [
+          6,
+          0.4,
+          6
+        ]
+      },
+      "refreshTicks": 1800,
+      "onColor": [
+        75,
+        151,
+        75
+      ],
+      "offColor": [
+        196,
+        40,
+        28
+      ]
+    },
+    {
+      "volume": {
+        "partId": 749,
+        "frame": {
+          "position": [
+            136,
+            246.59999,
+            2
+          ],
+          "rotation": [
+            -1,
+            0,
+            0,
+            -0,
+            1,
+            0,
+            -0,
+            0,
+            -1
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": false
+          }
+        },
+        "size": [
+          6,
+          0.4,
+          6
+        ]
+      },
+      "refreshTicks": 1800,
+      "onColor": [
+        75,
+        151,
+        75
+      ],
+      "offColor": [
+        196,
+        40,
+        28
+      ]
+    },
+    {
+      "volume": {
+        "partId": 2315,
+        "frame": {
+          "position": [
+            -183,
+            203.4,
+            213
+          ],
+          "rotation": [
+            -1,
+            0,
+            0,
+            -0,
+            1,
+            0,
+            -0,
+            0,
+            -1
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": false
+          }
+        },
+        "size": [
+          6,
+          0.4,
+          6
+        ]
+      },
+      "refreshTicks": 1800,
+      "onColor": [
+        75,
+        151,
+        75
+      ],
+      "offColor": [
+        196,
+        40,
+        28
+      ]
+    }
+  ],
+  "regeneration": {
+    "rate": 0.01,
+    "stepTicks": 60,
+    "sourceSha256": "1ae85f5d8235a88a1f30ced4d56ad2a7b71f326df204cb51f9a3dfe6ca000fe1"
+  },
+  "portals": [
+    {
+      "scriptId": 153,
+      "volume": {
+        "partId": 152,
+        "frame": {
+          "position": [
+            84.5,
+            393.4,
+            -188.5
+          ],
+          "rotation": [
+            0,
+            0,
+            -1,
+            0,
+            1,
+            0,
+            1,
+            0,
+            0
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": false
+          }
+        },
+        "size": [
+          17,
+          1.2,
+          17
+        ]
+      },
+      "destination": {
+        "position": [
+          161.40001,
+          402.5,
+          3.5
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      },
+      "force": {
+        "durationTicks": 120,
+        "target": [
+          0,
+          400,
+          0
+        ],
+        "p": 10000,
+        "d": 1250,
+        "maxForce": 10000
+      }
+    },
+    {
+      "scriptId": 208,
+      "volume": {
+        "partId": 186,
+        "frame": {
+          "position": [
+            0,
+            103.200005,
+            32.5
+          ],
+          "rotation": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": true
+          }
+        },
+        "size": [
+          12,
+          16.800001,
+          1
+        ]
+      },
+      "destination": {
+        "position": [
+          157.5,
+          142.8,
+          186
+        ],
+        "rotation": [
+          -0,
+          0,
+          1,
+          -0,
+          1,
+          0,
+          -1,
+          0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "force": null
+    },
+    {
+      "scriptId": 208,
+      "volume": {
+        "partId": 207,
+        "frame": {
+          "position": [
+            162.5,
+            142.8,
+            186
+          ],
+          "rotation": [
+            -0,
+            0,
+            1,
+            -0,
+            1,
+            0,
+            -1,
+            0,
+            0
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": false
+          }
+        },
+        "size": [
+          12,
+          16.800001,
+          1
+        ]
+      },
+      "destination": {
+        "position": [
+          0,
+          103.200005,
+          27.5
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      },
+      "force": null
+    },
+    {
+      "scriptId": 252,
+      "volume": {
+        "partId": 230,
+        "frame": {
+          "position": [
+            32.5,
+            103.200005,
+            0
+          ],
+          "rotation": [
+            -0,
+            0,
+            1,
+            -0,
+            1,
+            0,
+            -1,
+            0,
+            0
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": false
+          }
+        },
+        "size": [
+          12,
+          16.800001,
+          1
+        ]
+      },
+      "destination": {
+        "position": [
+          79,
+          345.6,
+          116.5
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      },
+      "force": null
+    },
+    {
+      "scriptId": 252,
+      "volume": {
+        "partId": 251,
+        "frame": {
+          "position": [
+            79,
+            345.6,
+            121.5
+          ],
+          "rotation": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": true
+          }
+        },
+        "size": [
+          12,
+          16.800001,
+          1
+        ]
+      },
+      "destination": {
+        "position": [
+          27.5,
+          103.200005,
+          0
+        ],
+        "rotation": [
+          -0,
+          0,
+          1,
+          -0,
+          1,
+          0,
+          -1,
+          0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "force": null
+    },
+    {
+      "scriptId": 296,
+      "volume": {
+        "partId": 274,
+        "frame": {
+          "position": [
+            -75,
+            292.80002,
+            99.5
+          ],
+          "rotation": [
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": true
+          }
+        },
+        "size": [
+          12,
+          16.800001,
+          1
+        ]
+      },
+      "destination": {
+        "position": [
+          -27.5,
+          103.200005,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          -1,
+          0,
+          1,
+          0,
+          1,
+          0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "force": null
+    },
+    {
+      "scriptId": 296,
+      "volume": {
+        "partId": 295,
+        "frame": {
+          "position": [
+            -32.5,
+            103.200005,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            -1,
+            0,
+            1,
+            0,
+            1,
+            0,
+            0
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": false
+          }
+        },
+        "size": [
+          12,
+          16.800001,
+          1
+        ]
+      },
+      "destination": {
+        "position": [
+          -75,
+          292.80002,
+          94.5
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      },
+      "force": null
+    },
+    {
+      "scriptId": 340,
+      "volume": {
+        "partId": 318,
+        "frame": {
+          "position": [
+            0,
+            103.200005,
+            -32.5
+          ],
+          "rotation": [
+            -1,
+            0,
+            0,
+            -0,
+            1,
+            0,
+            -0,
+            0,
+            -1
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": false
+          }
+        },
+        "size": [
+          12,
+          16.800001,
+          1
+        ]
+      },
+      "destination": {
+        "position": [
+          13.5,
+          512.4,
+          -282
+        ],
+        "rotation": [
+          0,
+          0,
+          -1,
+          0,
+          1,
+          0,
+          1,
+          0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "force": null
+    },
+    {
+      "scriptId": 340,
+      "volume": {
+        "partId": 339,
+        "frame": {
+          "position": [
+            8.5,
+            512.4,
+            -282
+          ],
+          "rotation": [
+            0,
+            0,
+            -1,
+            0,
+            1,
+            0,
+            1,
+            0,
+            0
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": false
+          }
+        },
+        "size": [
+          12,
+          16.800001,
+          1
+        ]
+      },
+      "destination": {
+        "position": [
+          0,
+          103.200005,
+          -27.5
+        ],
+        "rotation": [
+          -1,
+          0,
+          0,
+          -0,
+          1,
+          0,
+          -0,
+          0,
+          -1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "force": null
+    },
+    {
+      "scriptId": 2241,
+      "volume": {
+        "partId": 2240,
+        "frame": {
+          "position": [
+            -143,
+            55.800003,
+            163
+          ],
+          "rotation": [
+            0,
+            0,
+            -1,
+            0,
+            1,
+            0,
+            1,
+            0,
+            0
+          ],
+          "translation": {},
+          "orientation": {
+            "isIdentity": false
+          }
+        },
+        "size": [
+          8,
+          1.2,
+          8
+        ]
+      },
+      "destination": {
+        "position": [
+          0,
+          307,
+          0
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      },
+      "force": null
+    }
+  ]
+}

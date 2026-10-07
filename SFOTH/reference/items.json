@@ -1,0 +1,1340 @@
+{
+  "formatVersion": 6,
+  "sourceSha256": "a55fd43a905b6cb1d7a6180a461a38640f1e0669338543f0f2dca68a85b9b3d6",
+  "starterId": 2865,
+  "installTicks": 60,
+  "backupTicks": 600,
+  "refreshTicks": 2700,
+  "items": [
+    {
+      "id": 2865,
+      "name": "Sword",
+      "className": "Tool",
+      "handleId": 2867,
+      "scriptIds": [
+        2866
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          -1.5
+        ],
+        "rotation": [
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "size": [
+        1,
+        0.8,
+        4
+      ],
+      "shape": 1,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        99,
+        95,
+        98
+      ],
+      "transparency": 0,
+      "reflectance": 0.4,
+      "icon": "rbxasset://Textures/Sword128.png",
+      "mesh": {
+        "meshId": "rbxasset://fonts/sword.mesh",
+        "textureId": "rbxasset://textures/SwordTexture.png",
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "vertexColor": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sword": {
+        "slashDamage": 10,
+        "lungeDamage": 28,
+        "knockback": null,
+        "lunge": null,
+        "ghost": null,
+        "reveal": null
+      },
+      "cloak": null
+    },
+    {
+      "id": 2930,
+      "name": "Darkheart",
+      "className": "Tool",
+      "handleId": 2932,
+      "scriptIds": [
+        2931
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          -1.5
+        ],
+        "rotation": [
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "size": [
+        1,
+        0.8,
+        4
+      ],
+      "shape": 1,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        99,
+        95,
+        98
+      ],
+      "transparency": 0,
+      "reflectance": 0.7,
+      "icon": "http://www.roblox.com/asset/?id=16868189",
+      "mesh": {
+        "meshId": "rbxasset://fonts/sword.mesh",
+        "textureId": "rbxasset://textures/SwordTexture.png",
+        "scale": [
+          0.8,
+          0.8,
+          1
+        ],
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "vertexColor": [
+          0,
+          0,
+          0
+        ]
+      },
+      "sword": {
+        "slashDamage": 10,
+        "lungeDamage": 28,
+        "knockback": null,
+        "lunge": null,
+        "ghost": null,
+        "reveal": null
+      },
+      "cloak": null
+    },
+    {
+      "id": 2934,
+      "name": "Firebrand",
+      "className": "Tool",
+      "handleId": 2936,
+      "scriptIds": [
+        2935
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          -2
+        ],
+        "rotation": [
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "size": [
+        1,
+        0.8,
+        6
+      ],
+      "shape": 1,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        99,
+        95,
+        98
+      ],
+      "transparency": 0,
+      "reflectance": 0.7,
+      "icon": "http://www.roblox.com/asset/?id=81147983",
+      "mesh": {
+        "meshId": "rbxasset://fonts/sword.mesh",
+        "textureId": "rbxasset://textures/SwordTexture.png",
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ],
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "vertexColor": [
+          0.5,
+          0,
+          0
+        ]
+      },
+      "sword": {
+        "slashDamage": 12,
+        "lungeDamage": 34,
+        "knockback": null,
+        "lunge": null,
+        "ghost": null,
+        "reveal": null
+      },
+      "cloak": null
+    },
+    {
+      "id": 2938,
+      "name": "Ghostwalker",
+      "className": "Tool",
+      "handleId": 2940,
+      "scriptIds": [
+        2939
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          -1.5
+        ],
+        "rotation": [
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "size": [
+        1,
+        0.8,
+        4
+      ],
+      "shape": 1,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        242,
+        243,
+        243
+      ],
+      "transparency": 0.7,
+      "reflectance": 0,
+      "icon": "http://www.roblox.com/asset/?id=37755007",
+      "mesh": {
+        "meshId": "rbxasset://fonts/sword.mesh",
+        "textureId": "",
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "vertexColor": [
+          1,
+          1,
+          0
+        ]
+      },
+      "sword": {
+        "slashDamage": 10,
+        "lungeDamage": 28,
+        "knockback": null,
+        "lunge": null,
+        "ghost": {
+          "upwardAcceleration": 147.5,
+          "initialKills": 0,
+          "maximumLevel": 9,
+          "minimumTransparency": 0.2,
+          "maximumTransparency": 1,
+          "minimumDamage": 15,
+          "maximumDamage": 25,
+          "icons": [
+            "rbxassetid://5072914509",
+            "rbxassetid://5072914593",
+            "rbxassetid://5072914724",
+            "rbxassetid://5072914818",
+            "rbxassetid://5072914939",
+            "rbxassetid://5072915070",
+            "rbxassetid://5072915173",
+            "rbxassetid://5072915315",
+            "rbxassetid://5072915406",
+            "rbxassetid://5072915500"
+          ]
+        },
+        "reveal": null
+      },
+      "cloak": null
+    },
+    {
+      "id": 2943,
+      "name": "IceDagger",
+      "className": "Tool",
+      "handleId": 2946,
+      "scriptIds": [
+        2944
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          -0.75
+        ],
+        "rotation": [
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "size": [
+        1,
+        0.8,
+        2
+      ],
+      "shape": 1,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        242,
+        243,
+        243
+      ],
+      "transparency": 0,
+      "reflectance": 0,
+      "icon": "http://www.roblox.com/asset/?id=83689547 ",
+      "mesh": {
+        "meshId": "rbxasset://fonts/sword.mesh",
+        "textureId": "",
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "vertexColor": [
+          0,
+          0,
+          1
+        ]
+      },
+      "sword": {
+        "slashDamage": 10,
+        "lungeDamage": 15,
+        "knockback": null,
+        "lunge": null,
+        "ghost": null,
+        "reveal": null
+      },
+      "cloak": null
+    },
+    {
+      "id": 2948,
+      "name": "Illumina",
+      "className": "Tool",
+      "handleId": 2950,
+      "scriptIds": [
+        2949
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          -1.5
+        ],
+        "rotation": [
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "size": [
+        1,
+        0.8,
+        4
+      ],
+      "shape": 1,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        99,
+        95,
+        98
+      ],
+      "transparency": 0,
+      "reflectance": 0.7,
+      "icon": "http://www.roblox.com/asset/?id=16620737",
+      "mesh": {
+        "meshId": "rbxasset://fonts/sword.mesh",
+        "textureId": "",
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "vertexColor": [
+          1,
+          1,
+          0
+        ]
+      },
+      "sword": {
+        "slashDamage": 20,
+        "lungeDamage": 60,
+        "knockback": null,
+        "lunge": {
+          "gripOutTick": 15,
+          "forceEndTick": 45,
+          "recoveryEndTick": 75,
+          "initialUpSpeed": 80,
+          "redirectAtTick": 15,
+          "forwardSpeed": 120,
+          "redirectUpSpeed": 60
+        },
+        "ghost": null,
+        "reveal": {
+          "intervalTicks": 15,
+          "durationTicks": 120,
+          "radius": 32,
+          "color": [
+            0.6117647,
+            0.098039225,
+            1
+          ],
+          "enabled": true
+        }
+      },
+      "cloak": null
+    },
+    {
+      "id": 2953,
+      "name": "MedKit",
+      "className": "Tool",
+      "handleId": 2956,
+      "scriptIds": [
+        2954
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          1
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      },
+      "size": [
+        2,
+        1,
+        2
+      ],
+      "shape": 1,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        242,
+        243,
+        243
+      ],
+      "transparency": 0,
+      "reflectance": 0,
+      "icon": "rbxasset://Textures/MedKit.png",
+      "mesh": null,
+      "sword": null,
+      "cloak": null
+    },
+    {
+      "id": 2959,
+      "name": "ShadowSphere",
+      "className": "Tool",
+      "handleId": 2962,
+      "scriptIds": [
+        2960
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      },
+      "size": [
+        2,
+        2,
+        2
+      ],
+      "shape": 0,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        27,
+        42,
+        53
+      ],
+      "transparency": 0.5,
+      "reflectance": 0,
+      "icon": "rbxassetid://5124171482",
+      "mesh": null,
+      "sword": null,
+      "cloak": {
+        "durationTicks": 360,
+        "restingTransparency": 0.5,
+        "soundId": "rbxassetid://4676738150",
+        "volume": 0.5
+      }
+    },
+    {
+      "id": 2964,
+      "name": "ShieldSphere",
+      "className": "Tool",
+      "handleId": 2967,
+      "scriptIds": [
+        2965
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      },
+      "size": [
+        2,
+        2,
+        2
+      ],
+      "shape": 0,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        13,
+        105,
+        172
+      ],
+      "transparency": 0.5,
+      "reflectance": 0,
+      "icon": "rbxassetid://5124183869",
+      "mesh": null,
+      "sword": null,
+      "cloak": null
+    },
+    {
+      "id": 2969,
+      "name": "Sword",
+      "className": "Tool",
+      "handleId": 2971,
+      "scriptIds": [
+        2970
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          -1.5
+        ],
+        "rotation": [
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "size": [
+        1,
+        0.8,
+        4
+      ],
+      "shape": 1,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        99,
+        95,
+        98
+      ],
+      "transparency": 0,
+      "reflectance": 0.4,
+      "icon": "rbxasset://Textures/Sword128.png",
+      "mesh": {
+        "meshId": "rbxasset://fonts/sword.mesh",
+        "textureId": "rbxasset://textures/SwordTexture.png",
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "vertexColor": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sword": {
+        "slashDamage": 10,
+        "lungeDamage": 28,
+        "knockback": null,
+        "lunge": null,
+        "ghost": null,
+        "reveal": null
+      },
+      "cloak": null
+    },
+    {
+      "id": 2973,
+      "name": "Touchstone",
+      "className": "Tool",
+      "handleId": 2976,
+      "scriptIds": [
+        2974
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      },
+      "size": [
+        2,
+        2,
+        2
+      ],
+      "shape": 0,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        40,
+        127,
+        71
+      ],
+      "transparency": 0,
+      "reflectance": 0.5,
+      "icon": "rbxassetid://5124267348",
+      "mesh": null,
+      "sword": null,
+      "cloak": null
+    },
+    {
+      "id": 2978,
+      "name": "Venomshank",
+      "className": "Tool",
+      "handleId": 2980,
+      "scriptIds": [
+        2979,
+        2982
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          -2
+        ],
+        "rotation": [
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "size": [
+        1,
+        0.8,
+        6
+      ],
+      "shape": 1,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        99,
+        95,
+        98
+      ],
+      "transparency": 0,
+      "reflectance": 0.7,
+      "icon": "http://www.roblox.com/asset?id=82741319",
+      "mesh": {
+        "meshId": "rbxasset://fonts/sword.mesh",
+        "textureId": "rbxasset://textures/SwordTexture.png",
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ],
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "vertexColor": [
+          0.3,
+          1,
+          0.3
+        ]
+      },
+      "sword": {
+        "slashDamage": 10,
+        "lungeDamage": 28,
+        "knockback": null,
+        "lunge": null,
+        "ghost": null,
+        "reveal": null
+      },
+      "cloak": null
+    },
+    {
+      "id": 2983,
+      "name": "Windforce",
+      "className": "Tool",
+      "handleId": 2985,
+      "scriptIds": [
+        2984
+      ],
+      "canBeDropped": true,
+      "grip": {
+        "position": [
+          0,
+          0,
+          -1.75
+        ],
+        "rotation": [
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      },
+      "size": [
+        1,
+        0.8,
+        5
+      ],
+      "shape": 1,
+      "anchored": false,
+      "canCollide": true,
+      "color": [
+        110,
+        153,
+        202
+      ],
+      "transparency": 0,
+      "reflectance": 0.3,
+      "icon": "http://www.roblox.com/asset/?id=77330254",
+      "mesh": {
+        "meshId": "rbxasset://fonts/sword.mesh",
+        "textureId": "",
+        "scale": [
+          1.2,
+          1.2,
+          1.2
+        ],
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "vertexColor": [
+          1,
+          1,
+          0
+        ]
+      },
+      "sword": {
+        "slashDamage": 10,
+        "lungeDamage": 25,
+        "knockback": {
+          "durationTicks": 15,
+          "forwardSpeed": 150,
+          "upwardSpeed": 30,
+          "p": 125,
+          "maxForce": 10000000
+        },
+        "lunge": null,
+        "ghost": null,
+        "reveal": null,
+        "passiveDamage": 2
+      },
+      "cloak": null
+    },
+    {
+      "id": 2987,
+      "name": "BattleArmor",
+      "className": "MeshPart",
+      "handleId": 2987,
+      "scriptIds": [
+        2988
+      ],
+      "canBeDropped": false,
+      "grip": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      },
+      "size": [
+        1.80952,
+        2.270308,
+        0.34114003
+      ],
+      "shape": 1,
+      "anchored": true,
+      "canCollide": true,
+      "color": [
+        163,
+        162,
+        165
+      ],
+      "transparency": 0,
+      "reflectance": 1,
+      "icon": "",
+      "mesh": null,
+      "sword": null,
+      "cloak": null
+    }
+  ],
+  "pickups": [
+    {
+      "proxyId": 2801,
+      "templateId": 2987,
+      "frame": {
+        "position": [
+          -16.021784,
+          156.34,
+          229.53328
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      }
+    },
+    {
+      "proxyId": 2805,
+      "templateId": 2987,
+      "frame": {
+        "position": [
+          0.015240073,
+          284.73526,
+          -121.53057
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      }
+    },
+    {
+      "proxyId": 2809,
+      "templateId": 2959,
+      "frame": {
+        "position": [
+          -204,
+          469.00003,
+          267
+        ],
+        "rotation": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      }
+    },
+    {
+      "proxyId": 2811,
+      "templateId": 2930,
+      "frame": {
+        "position": [
+          -192.5,
+          60.00004,
+          226.4
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      }
+    },
+    {
+      "proxyId": 2814,
+      "templateId": 2964,
+      "frame": {
+        "position": [
+          151,
+          137.80002,
+          208
+        ],
+        "rotation": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      }
+    },
+    {
+      "proxyId": 2816,
+      "templateId": 2953,
+      "frame": {
+        "position": [
+          93,
+          340.10007,
+          101
+        ],
+        "rotation": [
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": true
+        }
+      }
+    },
+    {
+      "proxyId": 2820,
+      "templateId": 2978,
+      "frame": {
+        "position": [
+          182.4,
+          221.80003,
+          59.5
+        ],
+        "rotation": [
+          -0,
+          1,
+          0,
+          -0,
+          0,
+          -1,
+          -1,
+          0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      }
+    },
+    {
+      "proxyId": 2823,
+      "templateId": 2938,
+      "frame": {
+        "position": [
+          365.5,
+          19.20005,
+          126.4
+        ],
+        "rotation": [
+          -0,
+          1,
+          0,
+          -0,
+          0,
+          -1,
+          -1,
+          0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      }
+    },
+    {
+      "proxyId": 2826,
+      "templateId": 2943,
+      "frame": {
+        "position": [
+          0.5,
+          248.6,
+          338.4
+        ],
+        "rotation": [
+          -1,
+          -0,
+          0,
+          -0,
+          -0,
+          -1,
+          -0,
+          -1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      }
+    },
+    {
+      "proxyId": 2829,
+      "templateId": 2973,
+      "frame": {
+        "position": [
+          -214,
+          273.40002,
+          -66
+        ],
+        "rotation": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      }
+    },
+    {
+      "proxyId": 2831,
+      "templateId": 2934,
+      "frame": {
+        "position": [
+          -230.6,
+          347.8001,
+          -144.5
+        ],
+        "rotation": [
+          -0,
+          1,
+          0,
+          -0,
+          0,
+          -1,
+          -1,
+          0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      }
+    },
+    {
+      "proxyId": 2834,
+      "templateId": 2983,
+      "frame": {
+        "position": [
+          84.5,
+          636.5002,
+          -290.4
+        ],
+        "rotation": [
+          -1,
+          -0,
+          0,
+          -0,
+          -0,
+          -1,
+          -0,
+          -1,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      }
+    },
+    {
+      "proxyId": 2837,
+      "templateId": 2948,
+      "frame": {
+        "position": [
+          -471.4,
+          388.8001,
+          80.5
+        ],
+        "rotation": [
+          0,
+          -1,
+          0,
+          0,
+          -0,
+          -1,
+          1,
+          -0,
+          0
+        ],
+        "translation": {},
+        "orientation": {
+          "isIdentity": false
+        }
+      }
+    }
+  ]
+}

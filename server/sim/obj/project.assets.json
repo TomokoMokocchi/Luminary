@@ -1,0 +1,69 @@
+{
+  "version": 4,
+  "targets": {
+    "net10.0": {}
+  },
+  "libraries": {},
+  "projectFileDependencyGroups": {
+    "net10.0": []
+  },
+  "packageFolders": {
+    "/home/ray/.nuget/packages/": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/SimHost.csproj",
+      "projectName": "SimHost",
+      "projectPath": "/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/SimHost.csproj",
+      "packagesPath": "/home/ray/.nuget/packages/",
+      "outputPath": "/home/ray/AI shit/sfoth-dump/sfoth_client/2008/server/sim/obj/",
+      "projectStyle": "PackageReference",
+      "configFilePaths": [
+        "/home/ray/.nuget/NuGet/NuGet.Config"
+      ],
+      "originalTargetFrameworks": [
+        "net10.0"
+      ],
+      "sources": {
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "net10.0": {
+          "framework": "net10.0",
+          "targetAlias": "net10.0",
+          "projectReferences": {}
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "all"
+      },
+      "SdkAnalysisLevel": "10.0.400"
+    },
+    "frameworks": {
+      "net10.0": {
+        "framework": "net10.0",
+        "targetAlias": "net10.0",
+        "imports": [
+          "net461",
+          "net462",
+          "net47",
+          "net471",
+          "net472",
+          "net48",
+          "net481"
+        ],
+        "assetTargetFallback": true,
+        "warn": true,
+        "runtimeIdentifierGraphPath": "/home/ray/.dotnet/sdk/10.0.401/PortableRuntimeIdentifierGraph.json"
+      }
+    }
+  }
+}
