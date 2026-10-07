@@ -387,10 +387,26 @@ export class MapStore {
     const childIds = [];
     let id = 2;
 
-    const clonePart = (tpl, { pos, size, color, name, rotation = IDENTITY }) => {
+    // Deep-clone a template's child instances (e.g. the SpawnLocation's Decal
+    // that draws the spawn logo) with fresh ids, so they render in-game too.
+    const cloneChildren = (tplChildren, parentId) => {
+      const out = [];
+      for (const ch of tplChildren || []) {
+        const c = JSON.parse(JSON.stringify(ch));
+        const cid = id++;
+        c.id = cid; c.parent = parentId;
+        c.children = cloneChildren(ch.children, cid);
+        parts.push(c);
+        out.push(cid);
+      }
+      return out;
+    };
+
+    const clonePart = (tpl, { pos, size, color, name, rotation = IDENTITY, studs = false }) => {
       const p = JSON.parse(JSON.stringify(tpl));
       const pid = id++;
-      p.id = pid; p.name = name; p.path = 'Workspace/' + name; p.parent = 0; p.children = [];
+      p.id = pid; p.name = name; p.path = 'Workspace/' + name; p.parent = 0;
+      p.children = cloneChildren(tpl.children, pid); // keep the template's decals/children
       const P = p.properties;
       P.CFrame.value.position = pos.slice();
       P.CFrame.value.rotation = rotation.slice();
@@ -400,13 +416,16 @@ export class MapStore {
       if (P.Anchored) P.Anchored.value = true;
       if (P.CanCollide) P.CanCollide.value = true;
       if (P.Transparency) P.Transparency.value = 0;
+      // Give baseplates the classic stud surface on top so they look right.
+      if (studs && P.TopSurface) P.TopSurface.value = 3; // SurfaceType.Studs
       childIds.push(pid);
       parts.push(p);
       return pid;
     };
 
     for (const b of def.blocks) {
-      clonePart(t.part, { pos: b.pos, size: b.size, color: b.color || [163, 162, 165], name: 'Block' });
+      const isBase = (b.size && b.size[0] >= 100);
+      clonePart(t.part, { pos: b.pos, size: b.size, color: b.color || [163, 162, 165], name: isBase ? 'Baseplate' : 'Block', studs: isBase });
     }
     for (const s of def.spawns) {
       clonePart(t.spawn, { pos: [s[0], s[1], s[2]], size: [6, 1.2, 6], color: [245, 205, 48], name: 'SpawnLocation' });

@@ -341,18 +341,22 @@
   function selectGame(id) { if (id === GAMES.selected) { renderServers(); return; } setSelected(id); }
 
   // --- server browser (per selected map) ----------------------------------
+  // Mount it in the MAIN lobby column (full width), not next to the cramped
+  // captured #server-grid, and hide that native server/broadcast chrome.
   function mountServerHead() {
-    var grid = document.getElementById('server-grid');
-    if (!grid) return;
+    var main = document.querySelector('#join-screen main') || document.getElementById('join-screen');
+    if (!main) return;
     if (!document.getElementById('lum-servers')) {
       var wrap = document.createElement('div');
       wrap.id = 'lum-servers';
       wrap.innerHTML =
         '<div id="rbx-serverhead"><span class="rbx-dot"></span>Servers <small id="lum-serverfor"></small>' +
           '<span class="rbx-spacer"></span><button class="lum-srv-new" id="lum-new-server">+ New server</button>' +
-          '<button class="lum-srv-new ghost" id="lum-refresh-servers">↻</button></div>' +
+          '<button class="lum-srv-new ghost" id="lum-refresh-servers" title="Refresh">↻</button></div>' +
         '<div id="lum-server-list" class="lum-server-list"></div>';
-      grid.parentNode.insertBefore(wrap, grid);
+      var hero = main.querySelector('.lobby-hero');
+      if (hero && hero.nextSibling) main.insertBefore(wrap, hero.nextSibling);
+      else main.appendChild(wrap);
       wrap.querySelector('#lum-new-server').onclick = function () { joinRoom('map:' + GAMES.selected); };
       wrap.querySelector('#lum-refresh-servers').onclick = function () { renderServers(); };
     }
@@ -477,10 +481,26 @@
     if (val && valSrc) val.textContent = (valSrc.textContent || '100').trim();
   }
 
+  // A framed "live map" window directly under the Play button. The lobby
+  // renders the selected map full-screen as a backdrop; this frame is a clean
+  // window onto it (the card above is translucent), so the play screen shows a
+  // smaller, cropped view of the map instead of a tall empty panel.
+  function mountMapFrame() {
+    if (document.getElementById('lum-map-frame')) return;
+    var hero = document.querySelector('.lobby-hero');
+    var copy = hero && hero.querySelector('.hero-copy');
+    if (!hero || !copy) return;
+    var f = document.createElement('div');
+    f.id = 'lum-map-frame';
+    f.innerHTML = '<span class="lmf-tag"><i></i>LIVE</span><span class="lmf-hint">preview of ' + esc(gameName()) + '</span>';
+    if (copy.nextSibling) hero.insertBefore(f, copy.nextSibling); else hero.appendChild(f);
+  }
+
   async function mountLobby() {
     mountTopNav();
     mountSetName();
     relabelPlay();
+    mountMapFrame();
     watchPlaying();
     inGameTweaks();
     await fetchGames();
