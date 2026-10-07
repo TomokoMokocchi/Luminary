@@ -449,7 +449,10 @@
     var loop = function () { if (!viewer) return; if (!viewer.dragging) viewer.rot += 0.01; pivot.rotation.y = viewer.rot; renderer.render(scene, camera); viewer.raf = requestAnimationFrame(loop); };
     loop();
     var lastX = 0;
-    canvas.addEventListener('pointerdown', function (e) { viewer.dragging = true; lastX = e.clientX; canvas.setPointerCapture(e.pointerId); });
+    // Never pop the browser context menu over the 3D view — right-drag should
+    // rotate the avatar (Roblox-style) without a menu getting in the way.
+    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    canvas.addEventListener('pointerdown', function (e) { e.preventDefault(); viewer.dragging = true; lastX = e.clientX; try { canvas.setPointerCapture(e.pointerId); } catch (x) {} });
     canvas.addEventListener('pointermove', function (e) { if (viewer.dragging) { viewer.rot += (e.clientX - lastX) * 0.01; lastX = e.clientX; } });
     canvas.addEventListener('pointerup', function (e) { viewer.dragging = false; try { canvas.releasePointerCapture(e.pointerId); } catch (x) {} });
     canvas.addEventListener('wheel', function (e) { e.preventDefault(); camera.position.z = Math.max(7, Math.min(18, camera.position.z + (e.deltaY > 0 ? 1 : -1))); }, { passive: false });

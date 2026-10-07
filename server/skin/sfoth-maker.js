@@ -207,6 +207,9 @@
     });
     canvas.addEventListener('contextmenu', function (e) {
       e.preventDefault();
+      // A right-DRAG is "look around" — only a clean right-CLICK opens the menu,
+      // so dragging to look never pops the context window.
+      if (V.moved) return;
       var ray = screenRay(e);
       var hits = ray.intersectObjects(pickables(), true);
       var o = hits[0] ? objFromMesh(hits[0].object) : null;
