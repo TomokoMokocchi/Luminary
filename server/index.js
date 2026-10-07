@@ -406,6 +406,22 @@ const CLIENT_INJECT = `
       return matFor(def, part, col);
     } catch(e){ return def; }
   };
+  // A player's chosen COSTUME maps straight onto the engine's bot-appearance
+  // machinery: costume 'bot-N' is botAppearances[N] (its mesh + texture + body
+  // colours), so returning N here lets the engine dress the player exactly like
+  // that bot (accessory mesh via botHat, body via botBodyMaterial). 'bothat' is
+  // the standalone hat (uses data.botHat); 0 means no costume (normal avatar).
+  window.__lumCostumeIndex = function(pid){
+    try {
+      var a = (window.__lumApp && window.__lumApp[pid]) || (pid === window.__lumLocalId ? avatar() : null);
+      var c = a && a.costume;
+      if (!c || c === 'none') return 0;
+      var m = /^bot-(\\d+)$/.exec(c);
+      if (m) return +m[1];
+      if (c === 'bothat') return 101;
+      return 0;
+    } catch(e){ return 0; }
+  };
 })();
 </script>
 <style id="sfoth-trim">
