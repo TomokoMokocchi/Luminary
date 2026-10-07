@@ -526,3 +526,14 @@ body:not(.playing) #audience-count{display:none!important}
 
 /* the bottom-right health HUD is replaced by the one above the player list */
 body.playing #health{display:none!important}
+
+/* ---- Studio: searchable toolbox + right-click context menu ------------- */
+.st-tb-search{margin:8px 10px 0;padding:6px 9px;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font:inherit;font-size:12.5px;width:calc(100% - 20px);box-sizing:border-box}
+.st-toolbox{display:grid!important;grid-template-columns:1fr 1fr;gap:6px;padding:10px;max-height:190px;overflow:auto}
+#st-ctx{position:fixed;z-index:100003;display:none;min-width:180px;background:#1c1f25;border:1px solid #000;border-radius:7px;padding:4px;box-shadow:0 10px 30px rgba(0,0,0,.6);font-family:var(--font)}
+#st-ctx.open{display:block}
+#st-ctx .st-ctx-item{padding:7px 12px;border-radius:5px;font-size:13px;color:var(--ink);cursor:pointer;white-space:nowrap}
+#st-ctx .st-ctx-item:hover{background:var(--panel-3)}
+#st-ctx .st-ctx-item.danger{color:#ff8a8a}
+#st-ctx .st-ctx-item.danger:hover{background:rgba(196,40,28,.2)}
+#st-ctx .st-ctx-sep{height:1px;background:var(--line);margin:4px 6px}

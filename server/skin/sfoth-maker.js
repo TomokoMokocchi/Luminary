@@ -86,13 +86,8 @@
         '<div class="st-left">' +
           '<div class="st-pane">' +
             '<div class="st-pane-h">Toolbox</div>' +
-            '<div class="st-toolbox">' +
-              '<button class="st-ins" data-ins="block">▦ Block</button>' +
-              '<button class="st-ins" data-ins="ramp">◺ Ramp</button>' +
-              '<button class="st-ins" data-ins="spawn">⚑ Spawn</button>' +
-              '<button class="st-ins" data-ins="tool">🗡 Tool</button>' +
-              '<button class="st-ins" data-ins="baseplate">▭ Baseplate</button>' +
-            '</div>' +
+            '<input id="st-tb-search" class="st-tb-search" placeholder="Search objects…" autocomplete="off">' +
+            '<div class="st-toolbox" id="st-toolbox"></div>' +
           '</div>' +
           '<div class="st-pane st-grow">' +
             '<div class="st-pane-h">Explorer <button class="st-mini" data-act="addscript">+ Script</button></div>' +
@@ -144,7 +139,9 @@
     root.querySelectorAll('.st-tool').forEach(function (b) {
       b.onclick = function () { M.tool = b.dataset.t; root.querySelectorAll('.st-tool').forEach(function (x) { x.classList.toggle('active', x === b); }); };
     });
-    root.querySelectorAll('.st-ins').forEach(function (b) { b.onclick = function () { insert(b.dataset.ins); }; });
+    renderToolbox('');
+    var tbs = root.querySelector('#st-tb-search');
+    if (tbs) tbs.addEventListener('input', function () { renderToolbox(this.value.toLowerCase()); });
 
     root.addEventListener('click', function (e) {
       var a = e.target.closest('[data-act]'); if (!a) return;
@@ -208,7 +205,14 @@
       V.dragging = false; try { canvas.releasePointerCapture(e.pointerId); } catch (x) {}
       if (!V.moved && V.button === 0) handleClick(e);
     });
-    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    canvas.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      var ray = screenRay(e);
+      var hits = ray.intersectObjects(pickables(), true);
+      var o = hits[0] ? objFromMesh(hits[0].object) : null;
+      if (o) objectCtx(o, e.clientX, e.clientY);
+      else { var pt = groundPoint(ray) || V.pos.clone().add(forward().multiplyScalar(14)); showCtx(e.clientX, e.clientY, insertMenu(pt)); }
+    });
     canvas.addEventListener('wheel', function (e) {
       e.preventDefault();
       var f = forward(), step = (e.deltaY > 0 ? -1 : 1) * 6;
@@ -337,20 +341,88 @@
     renderExplorer();
   }
 
-  function insert(kind) {
+  function duplicateObject(o) {
+    var c = { kind: o.kind, name: o.name, pos: [o.pos[0] + 4, o.pos[1], o.pos[2] + 4], size: o.size.slice(), color: o.color.slice() };
+    if (o.kind === 'tool') { c.starter = o.starter; c.script = o.script || ''; }
+    selectObject(addObject(c));
+  }
+  function renameObject(o) { var n = prompt('Rename object', o.name); if (n != null) { o.name = String(n).slice(0, 40); renderExplorer(); if (M.sel === o) renderProps(); } }
+
+  // --- right-click context menu -------------------------------------------
+  var ctxEl = null;
+  function showCtx(x, y, items) {
+    if (!ctxEl) { ctxEl = document.createElement('div'); ctxEl.id = 'st-ctx'; document.body.appendChild(ctxEl); document.addEventListener('mousedown', hideCtx); window.addEventListener('blur', hideCtx); }
+    items = items.filter(Boolean);
+    ctxEl.innerHTML = items.map(function (it, i) { return it.sep ? '<div class="st-ctx-sep"></div>' : '<div class="st-ctx-item' + (it.danger ? ' danger' : '') + '" data-i="' + i + '">' + it.label + '</div>'; }).join('');
+    ctxEl.querySelectorAll('[data-i]').forEach(function (d) { d.onmousedown = function (e) { e.stopPropagation(); e.preventDefault(); var it = items[+d.dataset.i]; hideCtx(); if (it && it.fn) it.fn(); }; });
+    ctxEl.style.left = Math.min(x, window.innerWidth - 210) + 'px';
+    ctxEl.style.top = Math.min(y, window.innerHeight - (items.length * 30 + 20)) + 'px';
+    ctxEl.classList.add('open');
+  }
+  function hideCtx() { if (ctxEl) ctxEl.classList.remove('open'); }
+  function insertMenu(at) { return INSERTABLES.map(function (t) { return { label: t.icon + ' ' + t.name, fn: function () { insert(t.id, at); } }; }); }
+  function objectCtx(o, x, y) {
+    selectObject(o);
+    showCtx(x, y, [
+      { label: '✎ Rename', fn: function () { renameObject(o); } },
+      { label: '⧉ Duplicate', fn: function () { duplicateObject(o); } },
+      o.kind === 'tool' ? { label: '📜 Edit script', fn: function () { openToolScript(o); } } : null,
+      o.kind === 'tool' ? { label: (o.starter ? '✓ ' : '') + '🎒 Give on spawn', fn: function () { o.starter = !o.starter; renderExplorer(); if (M.sel === o) renderProps(); } } : null,
+      { sep: true },
+      { label: '🗑 Delete', danger: true, fn: function () { removeObject(o); } }
+    ]);
+  }
+
+  // Everything the Toolbox can insert. Block-based primitives differ only by
+  // default size; spawns/tools/scripts are their own kinds. Searchable.
+  var INSERTABLES = [
+    { id: 'block', name: 'Part', icon: '▦', group: 'Parts' },
+    { id: 'wall', name: 'Wall', icon: '▯', group: 'Parts' },
+    { id: 'platform', name: 'Platform', icon: '▭', group: 'Parts' },
+    { id: 'pillar', name: 'Pillar', icon: '▮', group: 'Parts' },
+    { id: 'ramp', name: 'Ramp', icon: '◺', group: 'Parts' },
+    { id: 'floor', name: 'Floor', icon: '⬛', group: 'Parts' },
+    { id: 'baseplate', name: 'Baseplate', icon: '▦', group: 'Parts' },
+    { id: 'spawn', name: 'SpawnLocation', icon: '⚑', group: 'Gameplay' },
+    { id: 'tool', name: 'Tool', icon: '🗡', group: 'Gameplay' },
+    { id: 'tool-starter', name: 'StarterTool', icon: '🎒', group: 'Gameplay' },
+    { id: 'script-server', name: 'Script', icon: '🟩', group: 'Scripts' },
+    { id: 'script-client', name: 'LocalScript', icon: '🟦', group: 'Scripts' }
+  ];
+  function renderToolbox(filter) {
+    var box = root.querySelector('#st-toolbox'); if (!box) return;
+    var items = INSERTABLES.filter(function (t) { return !filter || t.name.toLowerCase().indexOf(filter) >= 0 || t.group.toLowerCase().indexOf(filter) >= 0; });
+    box.innerHTML = items.map(function (t) { return '<button class="st-ins" data-ins="' + t.id + '" title="' + t.group + '">' + t.icon + ' ' + t.name + '</button>'; }).join('') || '<div class="st-ex-empty">No objects match.</div>';
+    box.querySelectorAll('.st-ins').forEach(function (b) { b.onclick = function () { insert(b.dataset.ins); }; });
+  }
+
+  // kind -> block template (size); undefined for non-block kinds
+  var BLOCK_KINDS = {
+    block: { name: 'Part', size: [4, 4, 4] },
+    wall: { name: 'Wall', size: [12, 8, 1] },
+    platform: { name: 'Platform', size: [16, 1, 16] },
+    pillar: { name: 'Pillar', size: [2, 12, 2] },
+    ramp: { name: 'Ramp', size: [8, 1, 12] },
+    floor: { name: 'Floor', size: [32, 1, 32] }
+  };
+
+  function insert(kind, at) {
     if (!V) { status('Editor still loading…'); return; }
-    var front = forward().multiplyScalar(14); var p = V.pos.clone().add(front); p.y = Math.max(2, p.y);
-    if (kind === 'baseplate') {
+    var p = at || (function () { var f = forward().multiplyScalar(14); var q = V.pos.clone().add(f); q.y = Math.max(2, q.y); return q; })();
+    var rx = Math.round(p.x), rz = Math.round(p.z);
+    if (BLOCK_KINDS[kind]) {
+      var t = BLOCK_KINDS[kind];
+      selectObject(addObject({ kind: 'block', name: t.name, pos: [rx, Math.max(t.size[1] / 2, Math.round(p.y)), rz], size: t.size.slice(), color: M.color.slice() }));
+    } else if (kind === 'baseplate') {
       if (M.objects.some(function (o) { return o.kind === 'block' && o.size[0] >= BASE; })) { status('Baseplate already present.'); return; }
-      addObject({ kind: 'block', name: 'Baseplate', pos: [0, -1, 0], size: [BASE, 2, BASE], color: [75, 151, 75] });
-    } else if (kind === 'block') {
-      addObject({ kind: 'block', name: 'Part', pos: [Math.round(p.x), 2, Math.round(p.z)], size: [4, 4, 4], color: M.color.slice() });
-    } else if (kind === 'ramp') {
-      addObject({ kind: 'block', name: 'Ramp', pos: [Math.round(p.x), 2, Math.round(p.z)], size: [8, 1, 12], color: M.color.slice() });
+      selectObject(addObject({ kind: 'block', name: 'Baseplate', pos: [0, -1, 0], size: [BASE, 2, BASE], color: [75, 151, 75] }));
     } else if (kind === 'spawn') {
-      addObject({ kind: 'spawn', name: 'SpawnLocation', pos: [Math.round(p.x), 0.6, Math.round(p.z)], size: [6, 1.2, 6], color: [245, 205, 48] });
-    } else if (kind === 'tool') {
-      addObject({ kind: 'tool', name: 'Tool', pos: [Math.round(p.x), 3, Math.round(p.z)], size: [1, 4, 1], color: [163, 162, 165], starter: false, script: '' });
+      selectObject(addObject({ kind: 'spawn', name: 'SpawnLocation', pos: [rx, 0.6, rz], size: [6, 1.2, 6], color: [245, 205, 48] }));
+    } else if (kind === 'tool' || kind === 'tool-starter') {
+      selectObject(addObject({ kind: 'tool', name: 'Tool', pos: [rx, 3, rz], size: [1, 4, 1], color: [163, 162, 165], starter: kind === 'tool-starter', script: '' }));
+    } else if (kind === 'script-server' || kind === 'script-client') {
+      openScript(null); var sel = root.querySelector('#st-sc-type'); if (sel) sel.value = kind === 'script-client' ? 'client' : 'server';
+      return;
     }
     status('Inserted ' + kind + '.');
   }
@@ -439,8 +511,17 @@
     html += '<div class="st-ex-grp">📜 Scripts</div>';
     html += (M.scripts.map(function (s, i) { return '<div class="st-ex-row" data-script="' + i + '"><span class="st-ex-ic">' + (s.type === 'client' ? '🟦' : '🟩') + '</span>' + esc(s.name) + '</div>'; }).join('') || '<div class="st-ex-empty">(no scripts)</div>');
     el.innerHTML = html;
-    el.querySelectorAll('[data-uid]').forEach(function (r) { r.onclick = function () { selectObject(M.objects.find(function (o) { return o.uid == r.dataset.uid; })); }; });
-    el.querySelectorAll('[data-script]').forEach(function (r) { r.onclick = function () { openScript(+r.dataset.script); }; });
+    el.querySelectorAll('[data-uid]').forEach(function (r) {
+      var find = function () { return M.objects.find(function (o) { return o.uid == r.dataset.uid; }); };
+      r.onclick = function () { selectObject(find()); };
+      r.oncontextmenu = function (e) { e.preventDefault(); var o = find(); if (o) objectCtx(o, e.clientX, e.clientY); };
+    });
+    el.querySelectorAll('[data-script]').forEach(function (r) {
+      r.onclick = function () { openScript(+r.dataset.script); };
+      r.oncontextmenu = function (e) { e.preventDefault(); var i = +r.dataset.script; showCtx(e.clientX, e.clientY, [{ label: '✎ Edit', fn: function () { openScript(i); } }, { sep: true }, { label: '🗑 Delete', danger: true, fn: function () { M.scripts.splice(i, 1); renderExplorer(); } }]); };
+    });
+    // right-click empty explorer space -> insert menu
+    el.oncontextmenu = function (e) { if (e.target === el || e.target.classList.contains('st-ex-grp') || e.target.classList.contains('st-ex-empty')) { e.preventDefault(); showCtx(e.clientX, e.clientY, insertMenu(null)); } };
   }
 
   function renderProps() {
