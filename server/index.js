@@ -1,5 +1,7 @@
 // A reconstructed content + signalling server for the 2008-era SFOTH IV
-// browser client captured in ../ (sword fights on the heights).
+// browser client captured in ../ (sword fights on the heights), extended into a
+// small Roblox-like platform: user-created maps, many live server instances per
+// map, per-browser ownership keys, likes, and in-map scripting.
 //
 // What this server does:
 //   * serves the entire static client (HTML, JS, WASM, fonts, audio, textures)
@@ -10,11 +12,13 @@
 //     real SDP offer, /api/guest/answer completes it, and the v23 clock
 //     handshake runs on the "control" data channel so the client reaches the
 //     "connected" state.
+//   * hosts MANY server instances across MANY maps (see webrtc.js) and exposes a
+//     server browser (/api/servers) so players can pick an instance of a map.
 //
-// What it does NOT do: run the authoritative Bepu physics simulation or emit
-// v23 world snapshots. That logic lives in the server-side .NET assemblies,
-// which are not part of this client bundle, so an actual playable match cannot
-// be reconstructed from these files alone. See README.md.
+// What it does NOT do on its own: run the authoritative Bepu physics simulation
+// or emit v23 world snapshots. That logic lives in the server-side .NET
+// assemblies. When the .NET runtime is present the per-instance SimBridge drives
+// real gameplay; otherwise transport/signalling/clock still work. See README.md.
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -23,7 +27,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { GameServer } from './webrtc.js';
-import { MapStore } from './maps.js';
+import { MapStore, hashKey } from './maps.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEBROOT = path.resolve(__dirname, '..'); // the ".../2008" directory
@@ -35,11 +39,10 @@ const SOURCE_SHA256 = 'a55fd43a905b6cb1d7a6180a461a38640f1e0669338543f0f2dca68a8
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
-const game = new GameServer({ iceServers: ICE_SERVERS.flatMap((s) => (Array.isArray(s.urls) ? s.urls : [s.urls])), log });
 
 // Map store: built-in Heights + public user-created maps. Custom maps generate
-// their own arena.json (physics) + scene.json (visuals); the active map's files
-// are served in place of the originals and loaded by the simulation.
+// their own arena.json (physics) + scene.json (visuals); the map a browser has
+// selected (cookie "lum_map") decides which reference files it is served.
 const maps = new MapStore({
   refDir: path.join(WEBROOT, 'SFOTH', 'reference'),
   storeDir: path.join(__dirname, 'maps-store'),
@@ -48,6 +51,14 @@ const maps = new MapStore({
   log,
 });
 maps.init().catch((e) => log('[maps] init failed:', e.message));
+
+const game = new GameServer({
+  iceServers: ICE_SERVERS.flatMap((s) => (Array.isArray(s.urls) ? s.urls : [s.urls])),
+  log,
+  playerLimit: 15,
+  resolveRefDir: (mapId) => maps.refDirFor(mapId),
+  onPlay: (mapId) => maps.recordPlay(mapId),
+});
 
 // ---------------------------------------------------------------------------
 // MIME
@@ -78,7 +89,6 @@ const MIME = {
 function mimeFor(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (MIME[ext]) return MIME[ext];
-  // Extensionless recorded API captures are JSON documents.
   if (!ext) return 'application/json; charset=utf-8';
   return 'application/octet-stream';
 }
@@ -98,7 +108,7 @@ function sendText(res, status, text, type = 'text/plain; charset=utf-8') {
   res.end(body);
 }
 
-function readBody(req, limit = 1 << 20) {
+function readBody(req, limit = 8 << 20) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
@@ -141,6 +151,26 @@ function chosenName(req) {
   return clean || '';
 }
 
+// The browser's per-user ownership key (minted client-side on first name set).
+// We only ever store/compare its salted hash. Sent as a header on map writes.
+function ownerKeyHash(req) {
+  const raw = (req.headers['x-lum-key'] || '').toString().trim();
+  return raw ? hashKey(raw) : null;
+}
+
+// Client IP for like/dislike spam-prevention (one vote per IP per map).
+function clientIp(req) {
+  const xff = (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim();
+  return xff || req.socket.remoteAddress || '0.0.0.0';
+}
+function voterHash(req) { return hashKey('vote:' + clientIp(req)); }
+
+// The map this browser currently has selected (governs scene/arena serving).
+function selectedMap(req) {
+  const id = cookie(req, 'lum_map');
+  return id && maps.has(id) ? id : 'heights';
+}
+
 // ---------------------------------------------------------------------------
 // static files
 // ---------------------------------------------------------------------------
@@ -155,7 +185,7 @@ async function serveStatic(req, res, pathname) {
   try {
     stat = await fsp.stat(abs);
   } catch {
-    return false; // not a file — let caller fall back
+    return false;
   }
   if (stat.isDirectory()) {
     return serveStatic(req, res, pathname.replace(/\/?$/, '/'));
@@ -168,10 +198,8 @@ async function serveStatic(req, res, pathname) {
       ? 'public, max-age=31536000, immutable'
       : 'no-cache',
   };
-  // Fonts/scripts the client preloads with crossorigin need permissive CORS.
   headers['access-control-allow-origin'] = '*';
 
-  // gzip text assets on the fly when the client accepts it.
   const acceptsGzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
   const compressible = /text|javascript|json|svg|wasm/.test(type);
   if (acceptsGzip && compressible && stat.size > 1024) {
@@ -190,7 +218,7 @@ async function serveStatic(req, res, pathname) {
 // ---------------------------------------------------------------------------
 function configPayload() {
   return {
-    buildId: '20261004-232256-737079a1',
+    buildId: '20261007-000000-luminary',
     gameDisabled: false,
     iceServers: ICE_SERVERS,
     accountsEnabled: true,
@@ -202,7 +230,6 @@ function configPayload() {
 }
 
 function identityPayload(req) {
-  // No account backend: we simply trust whatever name the client set.
   const name = chosenName(req);
   return {
     authenticated: !!name,
@@ -215,24 +242,9 @@ function identityPayload(req) {
   };
 }
 
-const NICKS = ['blademaster', 'fust', 'deathgiver', 'bone_spore', 'ghostlight', 'barsentplays'];
-function lobbyPayload() {
-  const humans = 4 + Math.floor(Math.random() * 6);
-  const bots = 11 - Math.min(humans, 11);
-  const players = [];
-  let id = 100;
-  for (let i = 0; i < humans; i++) players.push({ nickname: NICKS[i % NICKS.length] + (i || ''), bot: false, id: id++ });
-  for (let i = 0; i < bots; i++) players.push({ nickname: `Bot ${i + 1}`, bot: true, id: id++ });
-  return { fresh: true, humans, bots, playerLimit: 15, players };
-}
-
 // ---------------------------------------------------------------------------
 // spectator broadcast (SSE)
 // ---------------------------------------------------------------------------
-// Optional live replay: if server/broadcast-frames.json exists it should be a
-// JSON array whose items are either frame objects (streamed as unnamed SSE
-// data) or base64(gzip(json)) strings (streamed as `frame` events). Otherwise
-// the stream reports "warming up", which the client renders as a waiting state.
 let REPLAY = null;
 try {
   const p = path.join(__dirname, 'broadcast-frames.json');
@@ -275,7 +287,7 @@ function broadcastStream(req, res) {
       i++;
       if (typeof item === 'string') sendEvent('frame', item);
       else sendEvent(null, { version: 1, sourceSha256: SOURCE_SHA256, epoch, ...item });
-      timer = setTimeout(tick, 1000 / 20); // ~20 fps
+      timer = setTimeout(tick, 1000 / 20);
     };
     tick();
   } else {
@@ -292,7 +304,7 @@ function broadcastStream(req, res) {
 }
 
 // ---------------------------------------------------------------------------
-// client trim + "Set name" (injected into index.html at serve time)
+// client trim + skin bundle (injected into index.html at serve time)
 // ---------------------------------------------------------------------------
 const CLIENT_INJECT = `
 <style id="sfoth-trim">
@@ -307,6 +319,7 @@ body.playing #topbar{display:revert!important}
 <link rel="stylesheet" href="/sfoth-skin/sfoth-2016.css">
 <script defer src="/sfoth-skin/sfoth-avatar.js"></script>
 <script defer src="/sfoth-skin/sfoth-maker.js"></script>
+<script defer src="/sfoth-skin/sfoth-scripts.js"></script>
 <script defer src="/sfoth-skin/sfoth-2016.js"></script>
 `;
 
@@ -344,8 +357,8 @@ async function handle(req, res) {
   if (method === 'OPTIONS') {
     res.writeHead(204, {
       'access-control-allow-origin': '*',
-      'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
-      'access-control-allow-headers': 'Content-Type, Authorization, X-SFOTH-Member-Intent, X-SFOTH-Operator',
+      'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'access-control-allow-headers': 'Content-Type, Authorization, X-SFOTH-Member-Intent, X-SFOTH-Operator, X-Lum-Key',
     });
     return res.end();
   }
@@ -354,14 +367,17 @@ async function handle(req, res) {
   const api = pathname.replace(/^\/SFOTH\/api\//, 'api/').replace(/^\/api\//, 'api/');
   const isApi = api.startsWith('api/');
 
+  // --- map sub-routes: api/maps/:id , api/maps/:id/vote ---
+  const mapMatch = isApi && api.match(/^api\/maps\/([\w-]+)(\/vote)?$/);
+
   // --- dynamic JSON GET endpoints ---
   if (method === 'GET' && isApi) {
     switch (api) {
       case 'api/config': return sendJson(res, 200, configPayload());
       case 'api/identity': return sendJson(res, 200, identityPayload(req));
       case 'api/lobby': return sendJson(res, 200, game.lobby());
-      case 'api/maps': return sendJson(res, 200, { maps: maps.list(), active: maps.activeId });
-      case 'api/maps/active': return sendJson(res, 200, { active: maps.activeId, map: maps.list().find((m) => m.active) || null });
+      case 'api/maps': return sendJson(res, 200, { maps: maps.list(ownerKeyHash(req)), selected: selectedMap(req) });
+      case 'api/servers': return sendJson(res, 200, game.serverList(url.searchParams.get('map') || selectedMap(req)));
       case 'api/play-count': return sendJson(res, 200, { totalPlays: game.totalPlays });
       case 'api/availability': return sendJson(res, 200, { disabled: false, message: 'The Heights are taking a break. SFOTH is temporarily unavailable. Please check back later.' });
       case 'api/broadcast/stream': return broadcastStream(req, res);
@@ -373,7 +389,19 @@ async function handle(req, res) {
         res.writeHead(302, { location: 'https://feedback.shedletsky.com/' });
         return res.end();
       }
-      default: break; // fall through to static (recorded captures)
+      default: break;
+    }
+    // GET a single map's full definition (for editing / playing / inspecting).
+    if (mapMatch && !mapMatch[2]) {
+      const m = maps.get(mapMatch[1]);
+      if (!m) return sendJson(res, 404, { error: 'no such map' });
+      return sendJson(res, 200, {
+        id: m.id, name: m.name, author: m.author, builtin: !!m.builtin,
+        blocks: m.blocks || [], spawns: m.spawns || [], tools: m.tools || [], scripts: m.scripts || [],
+        plays: m.plays || 0, likes: m.likes || 0, dislikes: m.dislikes || 0,
+        owned: !!(ownerKeyHash(req) && m.ownerKey && m.ownerKey === ownerKeyHash(req)),
+        myVote: maps.voteOf(m.id, voterHash(req)),
+      });
     }
   }
 
@@ -383,6 +411,25 @@ async function handle(req, res) {
     return sendJson(res, 200, { left: true });
   }
 
+  // --- delete a map (owner only) ---
+  if (method === 'DELETE' && mapMatch && !mapMatch[2]) {
+    const result = await maps.remove(mapMatch[1], ownerKeyHash(req));
+    if (result === 'ok') return sendJson(res, 200, { ok: true });
+    if (result === 'forbidden') return sendJson(res, 403, { error: 'not your map' });
+    return sendJson(res, 404, { error: 'no such map' });
+  }
+
+  // --- select the map this browser plays (sets the lum_map cookie) ---
+  if (method === 'POST' && api === 'api/maps/select') {
+    const body = await readJson(req);
+    const id = (body.id || 'heights').toString();
+    const ok = maps.has(id);
+    const value = ok ? id : 'heights';
+    return sendJson(res, 200, { ok, selected: value }, {
+      'set-cookie': `lum_map=${encodeURIComponent(value)};path=/;max-age=31536000;samesite=lax`,
+    });
+  }
+
   // --- dynamic POST endpoints ---
   if (method === 'POST' && isApi) {
     switch (api) {
@@ -390,9 +437,9 @@ async function handle(req, res) {
         const body = await readJson(req);
         const name = chosenName(req) || (body.nickname || '').toString().slice(0, 20) || `Guest ${Math.floor(Math.random() * 9000 + 1000)}`;
         try {
-          const offer = await game.join({ nickname: name, roomId: body.roomId });
+          const offer = await game.join({ nickname: name, roomId: body.roomId, mapId: selectedMap(req) });
           offer.sourceSha256 = SOURCE_SHA256;
-          log(`[join] player ${offer.playerId} -> ${offer.roomId}`);
+          log(`[join] player ${offer.playerId} -> ${offer.roomId} (map=${offer.mapId})`);
           return sendJson(res, 200, offer);
         } catch (e) {
           log('[join] error', e);
@@ -420,22 +467,11 @@ async function handle(req, res) {
         const body = await readJson(req);
         try {
           const author = chosenName(req) || (body.author || 'anonymous');
-          const map = await maps.create({ ...body, author });
+          const map = await maps.create({ ...body, author }, ownerKeyHash(req));
           return sendJson(res, 200, { ok: true, map: { id: map.id, name: map.name } });
         } catch (e) {
           log('[maps] create failed:', e.message);
           return sendJson(res, 400, { error: 'invalid map' });
-        }
-      }
-      case 'api/maps/active': {
-        const body = await readJson(req);
-        const id = (body.id || '').toString();
-        try {
-          const refDir = await maps.setActive(id);
-          game.reloadMap(refDir);
-          return sendJson(res, 200, { ok: true, active: maps.activeId });
-        } catch (e) {
-          return sendJson(res, 404, { error: 'no such map' });
         }
       }
       case 'api/guest/queue':
@@ -448,14 +484,42 @@ async function handle(req, res) {
         return sendJson(res, 200, { ok: true });
       default: break;
     }
+
+    // vote (like / dislike) — one vote per IP per map
+    if (mapMatch && mapMatch[2] === '/vote') {
+      const body = await readJson(req);
+      const value = Number(body.vote) || 0; // 1 like, -1 dislike, 0 clear
+      const result = maps.vote(mapMatch[1], voterHash(req), value);
+      if (!result) return sendJson(res, 404, { error: 'no such map' });
+      return sendJson(res, 200, { ok: true, ...result });
+    }
+
+    // update an existing map (owner only)
+    if (mapMatch && !mapMatch[2]) {
+      const body = await readJson(req);
+      const result = await maps.update(mapMatch[1], body, ownerKeyHash(req));
+      if (result === 'ok') return sendJson(res, 200, { ok: true, id: mapMatch[1] });
+      if (result === 'forbidden') return sendJson(res, 403, { error: 'not your map' });
+      return sendJson(res, 404, { error: 'no such map' });
+    }
+  }
+  // Allow HTML PUT as an alias for update (some clients cannot send POST twice).
+  if (method === 'PUT' && mapMatch && !mapMatch[2]) {
+    const body = await readJson(req);
+    const result = await maps.update(mapMatch[1], body, ownerKeyHash(req));
+    if (result === 'ok') return sendJson(res, 200, { ok: true, id: mapMatch[1] });
+    if (result === 'forbidden') return sendJson(res, 403, { error: 'not your map' });
+    return sendJson(res, 404, { error: 'no such map' });
   }
 
   // --- active-map reference files (custom maps generate their own geometry) ---
+  // The map is chosen per-browser via the lum_map cookie.
   if (method === 'GET' && /^\/SFOTH\/reference\/(scene|arena)\.json$/.test(pathname)) {
-    if (maps.activeId !== 'heights') {
+    const mapId = selectedMap(req);
+    if (mapId !== 'heights') {
       const which = pathname.endsWith('scene.json') ? 'scene' : 'arena';
       try {
-        const obj = which === 'scene' ? await maps.sceneJson(maps.activeId) : await maps.arenaJson(maps.activeId);
+        const obj = which === 'scene' ? await maps.sceneJson(mapId) : await maps.arenaJson(mapId);
         if (obj) return sendJson(res, 200, obj, { 'access-control-allow-origin': '*' });
       } catch (e) { log('[maps] serve', which, 'failed:', e.message); }
     }
@@ -475,7 +539,7 @@ async function handle(req, res) {
     return sendText(res, 404, 'Not found');
   }
 
-  // --- injected game page (title + Set name + play + server list only) ---
+  // --- injected game page ---
   if (method === 'GET' && (pathname === '/SFOTH/' || pathname === '/SFOTH/index.html')) {
     return serveIndex(req, res);
   }
@@ -484,7 +548,7 @@ async function handle(req, res) {
   if (method === 'GET' && PAGES[pathname.replace(/\/$/, '')]) {
     return sendText(res, 200, PAGES[pathname.replace(/\/$/, '')], 'text/html; charset=utf-8');
   }
-  if (method === 'GET' && (pathname === '/' )) {
+  if (method === 'GET' && (pathname === '/')) {
     res.writeHead(302, { location: '/SFOTH/' });
     return res.end();
   }
@@ -493,7 +557,6 @@ async function handle(req, res) {
   if (method === 'GET' || method === 'HEAD') {
     const served = await serveStatic(req, res, pathname);
     if (served !== false) return;
-    // Missing asset? mirror it from the live site so we keep it for next time.
     if (await mirrorFromUpstream(req, res, pathname)) return;
   }
 
@@ -530,10 +593,9 @@ async function mirrorFromUpstream(req, res, pathname) {
   }
   if (!buf) return false;
   res.writeHead(200, { 'content-type': mimeFor(abs), 'access-control-allow-origin': '*', 'cache-control': 'no-cache' });
-  res.end(method_is_head(req) ? undefined : buf);
+  res.end(req.method.toUpperCase() === 'HEAD' ? undefined : buf);
   return true;
 }
-function method_is_head(req) { return req.method.toUpperCase() === 'HEAD'; }
 
 const server = http.createServer((req, res) => {
   handle(req, res).catch((e) => {

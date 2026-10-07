@@ -1,25 +1,40 @@
 // Map store + generator.
 //
-// A "map" is a compact, editor-friendly definition (a list of coloured boxes
-// and spawn pads). From it we generate the two reference documents the engine
-// needs: arena.json (authoritative physics: parts, spawns, per-part physics)
-// and scene.json (the client's visual scene graph). The other four reference
-// files (physics/combat/environment/items) are map-independent and reused.
+// A "map" is a compact, editor-friendly definition (a list of coloured boxes,
+// spawn pads, tools and scripts). From it we generate the two reference
+// documents the engine needs: arena.json (authoritative physics: parts, spawns,
+// per-part physics) and scene.json (the client's visual scene graph). The other
+// four reference files (physics/combat/environment/items) are map-independent
+// and reused.
 //
 // The built-in "heights" map is special: it serves the original captured
 // reference files unchanged, so the default experience never regresses.
 //
-// All user-created maps are PUBLIC: every map saved here is listed for everyone.
+// Ownership: when a player first sets a username the client mints a per-browser
+// key and keeps it in localStorage. Every map records a salted hash of the key
+// of whoever created it (ownerKey). Edits and deletes require the same key, so a
+// creator can manage their own maps from the same browser and nobody else can.
+//
+// All user-created maps are PUBLIC: every map saved here is listed for everyone,
+// ordered by how much they are played and liked.
 
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 const SHARED_REFS = ['physics.json', 'combat.json', 'environment.json', 'items.json'];
+
+// Salt for owner-key / voter hashes. Kept out of the client; stable across
+// restarts so existing maps keep their owners.
+const KEY_SALT = 'luminary-v1-ownerkey-salt';
+export function hashKey(key) {
+  return crypto.createHash('sha256').update(KEY_SALT + ':' + String(key || '')).digest('hex');
+}
 
 export class MapStore {
   constructor({ refDir, storeDir, genDir, sourceSha256, log = () => {} }) {
@@ -29,8 +44,8 @@ export class MapStore {
     this.sha = sourceSha256;
     this.log = log;
     this.maps = new Map();       // id -> definition
-    this.activeId = 'heights';
     this._tpl = null;            // cached scene templates
+    this._saveTimers = new Map();
   }
 
   async init() {
@@ -39,7 +54,8 @@ export class MapStore {
     // built-in Heights
     this.maps.set('heights', {
       id: 'heights', name: 'Luminary', author: 'Shedletsky', builtin: true,
-      createdAt: 0, blocks: [], spawns: [],
+      createdAt: 0, blocks: [], spawns: [], scripts: [], tools: [],
+      plays: 0, likes: 0, dislikes: 0, votes: {}, ownerKey: null,
     });
     // load user maps
     let files = [];
@@ -48,54 +64,169 @@ export class MapStore {
       if (!f.endsWith('.json')) continue;
       try {
         const def = JSON.parse(await fsp.readFile(path.join(this.storeDir, f), 'utf8'));
-        if (def && def.id) this.maps.set(def.id, def);
+        if (def && def.id) this.maps.set(def.id, this._normalizeLoaded(def));
       } catch (e) { this.log(`[maps] bad map ${f}: ${e.message}`); }
     }
-    this.log(`[maps] loaded ${this.maps.size - 1} user map(s); active=${this.activeId}`);
+    this.log(`[maps] loaded ${this.maps.size - 1} user map(s)`);
   }
 
-  list() {
-    return [...this.maps.values()].map((m) => ({
+  _normalizeLoaded(def) {
+    def.scripts = Array.isArray(def.scripts) ? def.scripts : [];
+    def.tools = Array.isArray(def.tools) ? def.tools : [];
+    def.plays = Number.isFinite(def.plays) ? def.plays : 0;
+    def.likes = Number.isFinite(def.likes) ? def.likes : 0;
+    def.dislikes = Number.isFinite(def.dislikes) ? def.dislikes : 0;
+    def.votes = def.votes && typeof def.votes === 'object' ? def.votes : {};
+    def.ownerKey = def.ownerKey || null;
+    return def;
+  }
+
+  // Popularity score: plays dominate, net likes break ties / give a small boost.
+  _score(m) {
+    return (m.plays || 0) * 3 + ((m.likes || 0) - (m.dislikes || 0));
+  }
+
+  // Public listing. `viewerKey` (hashed) lets the client learn which maps it
+  // owns (so it can show edit/delete). Sorted most-played/most-popular first,
+  // with the built-in arena kept at the top.
+  list(viewerKeyHash = null) {
+    const arr = [...this.maps.values()].map((m) => ({
       id: m.id, name: m.name, author: m.author || 'anonymous', builtin: !!m.builtin,
-      createdAt: m.createdAt || 0, blocks: (m.blocks || []).length, spawns: (m.spawns || []).length,
-      active: m.id === this.activeId,
+      createdAt: m.createdAt || 0, updatedAt: m.updatedAt || m.createdAt || 0,
+      blocks: (m.blocks || []).length, spawns: (m.spawns || []).length,
+      scripts: (m.scripts || []).length, tools: (m.tools || []).length,
+      plays: m.plays || 0, likes: m.likes || 0, dislikes: m.dislikes || 0,
+      score: this._score(m),
+      owned: !!(viewerKeyHash && m.ownerKey && m.ownerKey === viewerKeyHash),
     }));
+    arr.sort((a, b) => {
+      if (a.builtin !== b.builtin) return a.builtin ? -1 : 1; // Heights pinned on top
+      if (b.score !== a.score) return b.score - a.score;
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
+    });
+    return arr;
   }
 
   get(id) { return this.maps.get(id); }
-  activeMap() { return this.maps.get(this.activeId) || this.maps.get('heights'); }
+  has(id) { return this.maps.has(id); }
+
+  _persist(id) {
+    const def = this.maps.get(id);
+    if (!def || def.builtin) return;
+    // debounce writes so rapid like/play updates don't thrash the disk
+    clearTimeout(this._saveTimers.get(id));
+    this._saveTimers.set(id, setTimeout(() => {
+      fsp.writeFile(path.join(this.storeDir, id + '.json'), JSON.stringify(def, null, 2))
+        .catch((e) => this.log(`[maps] persist ${id}: ${e.message}`));
+    }, 250));
+  }
+
+  async _persistNow(id) {
+    const def = this.maps.get(id);
+    if (!def || def.builtin) return;
+    clearTimeout(this._saveTimers.get(id));
+    await fsp.writeFile(path.join(this.storeDir, id + '.json'), JSON.stringify(def, null, 2));
+  }
 
   // --- create a public map from editor output -----------------------------
-  async create(def) {
-    const id = 'map-' + Math.random().toString(36).slice(2, 9);
+  async create(def, ownerKeyHash = null) {
+    const id = 'map-' + crypto.randomBytes(5).toString('hex');
     const clean = {
       id,
       name: (def.name || 'Untitled').toString().slice(0, 40),
       author: (def.author || 'anonymous').toString().slice(0, 20),
       createdAt: Date.now(),
+      updatedAt: Date.now(),
       builtin: false,
+      ownerKey: ownerKeyHash || null,
       blocks: sanitizeBlocks(def.blocks),
       spawns: sanitizeSpawns(def.spawns),
+      tools: sanitizeTools(def.tools),
+      scripts: sanitizeScripts(def.scripts),
+      plays: 0, likes: 0, dislikes: 0, votes: {},
     };
     if (!clean.spawns.length) clean.spawns = [[0, 1, 0]]; // always at least one spawn
     this.maps.set(id, clean);
-    await fsp.writeFile(path.join(this.storeDir, id + '.json'), JSON.stringify(clean, null, 2));
-    this.log(`[maps] created "${clean.name}" (${id}) by ${clean.author}: ${clean.blocks.length} blocks, ${clean.spawns.length} spawns`);
+    await this._persistNow(id);
+    this.log(`[maps] created "${clean.name}" (${id}) by ${clean.author}: ${clean.blocks.length} blocks, ${clean.spawns.length} spawns, ${clean.scripts.length} scripts`);
     return clean;
   }
 
-  async setActive(id) {
-    if (!this.maps.has(id)) throw new Error('no such map');
-    this.activeId = id;
-    const dir = await this.materialize(id);
-    this.log(`[maps] active map -> ${id}`);
-    return dir;
+  // --- edit an existing map (owner only) ----------------------------------
+  // Returns 'ok' | 'notfound' | 'forbidden'
+  async update(id, def, ownerKeyHash) {
+    const m = this.maps.get(id);
+    if (!m || m.builtin) return 'notfound';
+    if (!m.ownerKey || m.ownerKey !== ownerKeyHash) return 'forbidden';
+    if (def.name != null) m.name = def.name.toString().slice(0, 40);
+    if (def.blocks != null) m.blocks = sanitizeBlocks(def.blocks);
+    if (def.spawns != null) { m.spawns = sanitizeSpawns(def.spawns); if (!m.spawns.length) m.spawns = [[0, 1, 0]]; }
+    if (def.tools != null) m.tools = sanitizeTools(def.tools);
+    if (def.scripts != null) m.scripts = sanitizeScripts(def.scripts);
+    m.updatedAt = Date.now();
+    this._dropGenerated(id);
+    await this._persistNow(id);
+    this.log(`[maps] updated "${m.name}" (${id})`);
+    return 'ok';
   }
 
-  // Return the refDir the sim should load for the active map.
-  async activeRefDir() {
-    if (this.activeId === 'heights') return this.refDir;
-    return this.materialize(this.activeId);
+  // --- delete a map (owner only) ------------------------------------------
+  async remove(id, ownerKeyHash) {
+    const m = this.maps.get(id);
+    if (!m || m.builtin) return 'notfound';
+    if (!m.ownerKey || m.ownerKey !== ownerKeyHash) return 'forbidden';
+    this.maps.delete(id);
+    this._dropGenerated(id);
+    try { await fsp.unlink(path.join(this.storeDir, id + '.json')); } catch {}
+    this.log(`[maps] deleted "${m.name}" (${id})`);
+    return 'ok';
+  }
+
+  _dropGenerated(id) {
+    const out = path.join(this.genDir, id);
+    fsp.rm(out, { recursive: true, force: true }).catch(() => {});
+  }
+
+  // --- popularity ---------------------------------------------------------
+  recordPlay(id) {
+    const m = this.maps.get(id);
+    if (!m) return;
+    m.plays = (m.plays || 0) + 1;
+    this._persist(id);
+  }
+
+  // Record a like/dislike. `voterHash` identifies the voter (IP + optional key)
+  // so each voter counts once; re-voting the same way clears the vote (toggle).
+  // Returns { likes, dislikes, vote } or null if the map is unknown.
+  vote(id, voterHash, value) {
+    const m = this.maps.get(id);
+    if (!m || m.builtin) return null;
+    const v = value > 0 ? 1 : value < 0 ? -1 : 0;
+    const prev = m.votes[voterHash] || 0;
+    const next = prev === v ? 0 : v; // clicking the same button again clears it
+    // unapply previous
+    if (prev === 1) m.likes = Math.max(0, m.likes - 1);
+    else if (prev === -1) m.dislikes = Math.max(0, m.dislikes - 1);
+    // apply next
+    if (next === 1) m.likes++;
+    else if (next === -1) m.dislikes++;
+    if (next === 0) delete m.votes[voterHash];
+    else m.votes[voterHash] = next;
+    this._persist(id);
+    return { likes: m.likes, dislikes: m.dislikes, vote: next };
+  }
+
+  voteOf(id, voterHash) {
+    const m = this.maps.get(id);
+    if (!m) return 0;
+    return m.votes[voterHash] || 0;
+  }
+
+  // Return the refDir the sim should load for a given map.
+  async refDirFor(id) {
+    if (!id || id === 'heights') return this.refDir;
+    if (!this.maps.has(id)) return this.refDir;
+    return this.materialize(id);
   }
 
   // Build a refDir on disk (arena.json generated + shared files reused).
@@ -114,7 +245,7 @@ export class MapStore {
     return out;
   }
 
-  // --- scene.json (client visuals) for the active map ---------------------
+  // --- scene.json (client visuals) for a map ------------------------------
   async sceneJson(id) {
     if (id === 'heights') return null; // caller serves the original file
     const def = this.maps.get(id);
@@ -181,8 +312,7 @@ export class MapStore {
         size: [6, 1.2, 6], duration: 3,
       });
       // a spawn is also a collidable pad so players land on something
-      const bpid = addBox([s[0], s[1], s[2]], [6, 1.2, 6]);
-      void bpid;
+      addBox([s[0], s[1], s[2]], [6, 1.2, 6]);
     }
 
     return {
@@ -200,8 +330,6 @@ export class MapStore {
       physics: {
         parts: physParts,
         elevators: [], motors: [], freeBodyIds: [], removedHelperIds: [],
-        // phantom + touchstoneDestination are optional (nullable); omitting them
-        // keeps them null so the validator's phantom-plate checks are skipped.
       },
     };
   }
@@ -283,12 +411,12 @@ const clampByte = (v) => Math.max(0, Math.min(255, Math.round(num(v, 160))));
 
 function sanitizeBlocks(blocks) {
   if (!Array.isArray(blocks)) return [];
-  return blocks.slice(0, 400).map((b) => ({
+  return blocks.slice(0, 2000).map((b) => ({
     pos: [num(b.pos?.[0], 0), num(b.pos?.[1], 0), num(b.pos?.[2], 0)],
     size: [
-      Math.max(0.2, Math.min(512, num(b.size?.[0], 4))),
-      Math.max(0.2, Math.min(512, num(b.size?.[1], 1))),
-      Math.max(0.2, Math.min(512, num(b.size?.[2], 4))),
+      Math.max(0.2, Math.min(2048, num(b.size?.[0], 4))),
+      Math.max(0.2, Math.min(2048, num(b.size?.[1], 1))),
+      Math.max(0.2, Math.min(2048, num(b.size?.[2], 4))),
     ],
     color: [clampByte(b.color?.[0]), clampByte(b.color?.[1]), clampByte(b.color?.[2])],
   }));
@@ -296,5 +424,29 @@ function sanitizeBlocks(blocks) {
 
 function sanitizeSpawns(spawns) {
   if (!Array.isArray(spawns)) return [];
-  return spawns.slice(0, 32).map((s) => [num(s[0], 0), num(s[1], 1), num(s[2], 0)]);
+  return spawns.slice(0, 64).map((s) => [num(s[0], 0), num(s[1], 1), num(s[2], 0)]);
+}
+
+// A tool is a named, coloured handle that can be placed in the world or in the
+// starter inventory, and can carry a client/server script by name.
+function sanitizeTools(tools) {
+  if (!Array.isArray(tools)) return [];
+  return tools.slice(0, 64).map((t) => ({
+    name: (t.name || 'Tool').toString().slice(0, 40),
+    color: [clampByte(t.color?.[0]), clampByte(t.color?.[1]), clampByte(t.color?.[2])],
+    pos: t.pos ? [num(t.pos[0], 0), num(t.pos[1], 3), num(t.pos[2], 0)] : null,
+    starter: !!t.starter,
+    script: t.script ? String(t.script).slice(0, 20000) : '',
+  }));
+}
+
+// Scripts carry a name, a side (client/server) and source text. We store them
+// verbatim (clamped); execution/sandboxing is the runtime's concern.
+function sanitizeScripts(scripts) {
+  if (!Array.isArray(scripts)) return [];
+  return scripts.slice(0, 64).map((s) => ({
+    name: (s.name || 'Script').toString().slice(0, 60),
+    type: s.type === 'server' ? 'server' : 'client',
+    source: String(s.source || '').slice(0, 100000),
+  }));
 }

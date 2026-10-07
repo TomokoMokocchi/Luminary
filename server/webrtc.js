@@ -1,4 +1,5 @@
-// WebRTC signalling + data-channel plumbing for the SFOTH client.
+// WebRTC signalling + data-channel plumbing for the SFOTH client, with
+// multi-server / multi-map support.
 //
 // The real server is the *offerer*: it opens two data channels ("state",
 // unreliable/unordered, and "control", reliable) and hands the browser an SDP
@@ -6,10 +7,19 @@
 // association comes up, and the client immediately runs a clock handshake on
 // "control". We answer that handshake so the client reaches "connected".
 //
+// SERVERS
+//   The world is no longer a single room. Every map can have one or more live
+//   server *instances*, named server-1, server-2, ... (a single global counter,
+//   so names never collide). A player joins an instance of the map they picked;
+//   when every instance for that map is full a fresh one is started on demand,
+//   and an instance is torn down the moment it empties. Each instance owns its
+//   own authoritative simulation bound to that map's reference directory.
+//
 // We do NOT reimplement the authoritative Bepu physics simulation or the v23
 // snapshot *encoder* (those live in the un-shipped server-side .NET assemblies,
-// not in this client bundle), so no gameplay snapshots flow on "state". The
-// transport, signalling and clock are real.
+// not in this client bundle). When the .NET runtime is unavailable the sim is
+// simply off and no gameplay snapshots flow on "state" — transport, signalling,
+// the clock and the roster are still real and the client reaches "connected".
 
 import nodeDataChannel from 'node-datachannel';
 import crypto from 'node:crypto';
@@ -22,46 +32,123 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLOCK_HZ = 60; // client clock advances 0.06 ticks/ms == 60 ticks/s
 
 export class GameServer {
-  constructor({ iceServers, log = () => {} }) {
+  // resolveRefDir(mapId) -> Promise<string>  (map's reference directory)
+  // onPlay(mapId)        -> void             (bump the map's play counter)
+  constructor({ iceServers, log = () => {}, playerLimit = 15, resolveRefDir, onPlay } = {}) {
     this.iceServers = iceServers;
     this.log = log;
-    this.sessions = new Map(); // session token -> session
+    this.playerLimit = playerLimit;
+    this.resolveRefDir = resolveRefDir || (async () => path.resolve(__dirname, '..', 'SFOTH', 'reference'));
+    this.onPlay = onPlay || (() => {});
+
+    this.sessions = new Map();   // session token -> session record
+    this.instances = new Map();  // roomId ("server-N") -> instance
     this.startTime = Date.now();
     this.nextPlayerId = 500 + Math.floor(Math.random() * 500);
-    this.totalPlays = 0; // real join counter
-    this.rooms = ['heights-91']; // one authoritative world
+    this.nextServerNum = 1;      // monotonic; names are server-<n>
+    this.totalPlays = 0;         // real join counter
     this.fragId = 0;
+  }
 
-    // The authoritative .NET simulation; snapshots are fragmented to every
-    // connected player's unreliable "state" channel.
-    this.sim = new SimBridge({
+  // ---------------------------------------------------------------------------
+  // instances
+  // ---------------------------------------------------------------------------
+  _createInstance(mapId) {
+    const id = 'server-' + (this.nextServerNum++);
+    const inst = {
+      id,
+      mapId: mapId || 'heights',
+      players: new Set(),     // session tokens
+      sim: null,
+      simStarted: false,
+      createdAt: Date.now(),
+    };
+    this.instances.set(id, inst);
+    this.log(`[server] started ${id} (map=${inst.mapId})`);
+    return inst;
+  }
+
+  _ensureSim(inst) {
+    if (inst.simStarted) return;
+    inst.simStarted = true;
+    inst.sim = new SimBridge({
       refDir: path.resolve(__dirname, '..', 'SFOTH', 'reference'),
-      log,
-      onSnapshot: (snap) => this.broadcastSnapshot(snap),
+      log: (...a) => this.log(`[${inst.id}]`, ...a),
+      onSnapshot: (snap) => this.broadcastSnapshot(inst, snap),
     });
-    this.sim.start();
+    // bind the map's reference directory, then start
+    Promise.resolve(this.resolveRefDir(inst.mapId))
+      .then((refDir) => { if (refDir) inst.sim.refDir = refDir; inst.sim.start(); })
+      .catch((e) => { this.log(`[${inst.id}] sim start failed: ${e.message}`); try { inst.sim.start(); } catch {} });
   }
 
-  // Switch the authoritative world to a different map's reference directory.
-  reloadMap(refDir) {
-    if (!this.sim) return false;
-    return this.sim.restart(refDir);
+  _closeInstance(inst) {
+    if (!this.instances.has(inst.id)) return;
+    this.instances.delete(inst.id);
+    try { inst.sim && inst.sim.stop(); } catch {}
+    this.log(`[server] closed ${inst.id} (map=${inst.mapId}) — empty`);
   }
 
-  // Current authoritative tick — follows the simulation when it is running.
-  serverTick() {
-    if (this.sim && this.sim.lastTick > 0) return this.sim.lastTick;
+  // Pick (or create) an instance for a map. If roomId names a concrete,
+  // joinable instance of the same map, reuse it; otherwise spill to the first
+  // non-full instance of that map, or start a brand-new one.
+  _allocate(mapId, roomId) {
+    mapId = mapId || 'heights';
+    if (roomId && this.instances.has(roomId)) {
+      const want = this.instances.get(roomId);
+      if (want.mapId === mapId && want.players.size < this.playerLimit) return want;
+    }
+    for (const inst of this.instances.values()) {
+      if (inst.mapId === mapId && inst.players.size < this.playerLimit) return inst;
+    }
+    return this._createInstance(mapId);
+  }
+
+  // Public view of the servers hosting a given map (for the server browser).
+  serverList(mapId) {
+    mapId = mapId || 'heights';
+    const servers = [];
+    for (const inst of this.instances.values()) {
+      if (inst.mapId !== mapId) continue;
+      const humans = inst.players.size;
+      servers.push({ id: inst.id, mapId, humans, playerLimit: this.playerLimit, available: humans < this.playerLimit });
+    }
+    servers.sort((a, b) => (a.id < b.id ? -1 : 1));
+    return { mapId, playerLimit: this.playerLimit, servers };
+  }
+
+  // Parse the client's roomId field. Supported forms:
+  //   "server-N"   -> a concrete instance (its map is used)
+  //   "map:<id>"   -> any instance of that map (allocate/spill)
+  //   undefined    -> fall back to the supplied default map (cookie / heights)
+  _resolveTarget(roomId, defaultMapId) {
+    let mapId = defaultMapId || 'heights';
+    let wantRoom = null;
+    const r = (roomId == null ? '' : String(roomId)).trim();
+    if (r.startsWith('map:')) {
+      mapId = r.slice(4) || 'heights';
+    } else if (/^server-\d+$/.test(r)) {
+      wantRoom = r;
+      const inst = this.instances.get(r);
+      if (inst) mapId = inst.mapId; // keep the instance's own map
+    }
+    return { mapId, wantRoom };
+  }
+
+  // Current authoritative tick for an instance — follows its simulation.
+  serverTick(inst) {
+    if (inst && inst.sim && inst.sim.lastTick > 0) return inst.sim.lastTick;
     return Math.max(0, Math.round((Date.now() - this.startTime) * (CLOCK_HZ / 1000)));
   }
 
   // Wrap an op-2/11 snapshot in the v23 transport envelope (opcode 8, full
-  // keyframe), then fragment (op3, <=1000-byte payloads) and push to everyone.
-  broadcastSnapshot(snap) {
+  // keyframe), fragment it (op3, <=1000-byte payloads) and push to this
+  // instance's players only.
+  broadcastSnapshot(inst, snap) {
     const innerLen = snap.length;
     if (innerLen < 12 || innerLen > 65535) return;
     const id = (this.fragId = (this.fragId + 1) >>> 0);
 
-    // transport envelope: [18003,23,8, mode=0, 0,0,0, frameId, baselineId=0, uLen, cLen=0, inner]
     const transport = Buffer.alloc(20 + innerLen);
     transport.writeUInt16LE(18003, 0);
     transport.writeUInt8(23, 2);
@@ -90,66 +177,56 @@ export class GameServer {
       transport.copy(frag, 12, start, end);
       frags.push(frag);
     }
-    let sent = 0;
-    for (const rec of this.sessions.values()) {
-      if (rec.closed || !rec.state) continue;
+    for (const session of inst.players) {
+      const rec = this.sessions.get(session);
+      if (!rec || rec.closed || !rec.state) continue;
       try {
-        if (!rec.state.isOpen || rec.state.isOpen()) { for (const f of frags) rec.state.sendMessageBinary(f); sent++; }
+        if (!rec.state.isOpen || rec.state.isOpen()) for (const f of frags) rec.state.sendMessageBinary(f);
       } catch (e) { if (!this._warned) { this._warned = true; this.log('[snap] send error: ' + e.message); } }
     }
-    this._bn = (this._bn || 0) + 1;
-    if (this._bn % 120 === 1) this.log(`[snap] broadcast #${this._bn} ${total}B x${count} frags -> ${sent} peers`);
   }
 
-  pickRoom(requested) {
-    if (requested && this.rooms.includes(requested)) return requested;
-    // place the player in the emptiest room
-    const counts = Object.fromEntries(this.rooms.map((r) => [r, 0]));
-    for (const s of this.sessions.values()) if (counts[s.roomId] != null) counts[s.roomId]++;
-    return this.rooms.reduce((a, b) => (counts[a] <= counts[b] ? a : b));
-  }
-
-  // Live lobby view built from the actually-connected players.
-  lobby(limit = 15) {
-    const byRoom = new Map(this.rooms.map((r) => [r, []]));
-    for (const s of this.sessions.values()) {
-      if (s.closed) continue;
-      const list = byRoom.get(s.roomId) || byRoom.set(s.roomId, []).get(s.roomId);
-      list.push({ nickname: s.nickname, bot: false, id: s.playerId });
-    }
+  // Live lobby view built from every connected player, grouped by instance.
+  lobby(limit = this.playerLimit) {
+    const rooms = [];
     let humans = 0;
-    const rooms = this.rooms.map((id) => {
-      const players = byRoom.get(id) || [];
+    for (const inst of this.instances.values()) {
+      const players = [];
+      for (const session of inst.players) {
+        const s = this.sessions.get(session);
+        if (!s || s.closed) continue;
+        players.push({ nickname: s.nickname, bot: false, id: s.playerId });
+      }
       humans += players.length;
-      return { id, available: players.length < limit, fresh: true, humans: players.length, bots: 0, players };
-    });
+      rooms.push({
+        id: inst.id, mapId: inst.mapId, available: players.length < limit,
+        fresh: true, humans: players.length, bots: 0, players,
+      });
+    }
+    rooms.sort((a, b) => (a.id < b.id ? -1 : 1));
     return { fresh: true, humans, bots: 0, playerLimit: limit, players: rooms.flatMap((r) => r.players), rooms };
   }
 
   // Create a peer connection as the offerer and gather a complete SDP offer.
-  async join({ nickname, roomId: requestedRoom }) {
+  async join({ nickname, roomId, mapId }) {
+    const target = this._resolveTarget(roomId, mapId);
+    const inst = this._allocate(target.mapId, target.wantRoom);
+
     const session = crypto.randomBytes(32).toString('hex');
     const playerId = this.nextPlayerId++;
-    const roomId = this.pickRoom(requestedRoom);
     this.totalPlays++;
+    this.onPlay(inst.mapId);
 
-    const pc = new nodeDataChannel.PeerConnection(`sfoth-${playerId}`, {
-      iceServers: this.iceServers,
-    });
+    const pc = new nodeDataChannel.PeerConnection(`sfoth-${playerId}`, { iceServers: this.iceServers });
 
     const record = {
-      session,
-      playerId,
-      roomId,
-      nickname,
-      pc,
-      state: null,
-      control: null,
-      clockReplies: 0,
-      createdAt: Date.now(),
-      closed: false,
+      session, playerId, roomId: inst.id, mapId: inst.mapId, nickname,
+      pc, state: null, control: null, clockReplies: 0,
+      createdAt: Date.now(), closed: false, joinedSim: false, inst,
     };
     this.sessions.set(session, record);
+    inst.players.add(session);
+    this._ensureSim(inst);
 
     pc.onStateChange((s) => {
       this.log(`[rtc ${playerId}] connection ${s}`);
@@ -163,9 +240,9 @@ export class GameServer {
     state.onOpen(() => {
       if (record.closed || record.joinedSim) return;
       record.joinedSim = true;
-      this.sim.join(playerId); // spawn the player in the authoritative world
-      this.announcePlayer(record); // nametag + scoreboard names
-      this.log(`[rtc ${playerId}] joined simulation`);
+      try { inst.sim && inst.sim.join(playerId); } catch {}
+      this.announcePlayer(record);
+      this.log(`[rtc ${playerId}] joined ${inst.id}`);
     });
     state.onMessage((msg) => this.onStateMessage(record, msg));
 
@@ -179,20 +256,19 @@ export class GameServer {
 
     return {
       session,
-      roomId,
+      roomId: inst.id,
+      mapId: inst.mapId,
       nickname,
       playerId,
       sdp,
       type: 'offer',
       protocol: 23,
-      playerLimit: 15,
+      playerLimit: this.playerLimit,
       member: true,
       botLevel: 0,
     };
   }
 
-  // Wait for ICE gathering to finish, then return the full offer SDP
-  // (with candidates and a=end-of-candidates), matching the real server.
   gatherOffer(pc, playerId) {
     return new Promise((resolve) => {
       let done = false;
@@ -206,19 +282,12 @@ export class GameServer {
         this.log(`[rtc ${playerId}] gathering ${s}`);
         if (s === 'complete') finish();
       });
-      // Creating the data channels above already kicked off negotiation; make
-      // sure a local description exists even on older binaries.
-      try {
-        if (typeof pc.setLocalDescription === 'function') pc.setLocalDescription();
-      } catch {
-        /* already generating */
-      }
+      try { if (typeof pc.setLocalDescription === 'function') pc.setLocalDescription(); } catch {}
       if (pc.gatheringState && pc.gatheringState() === 'complete') finish();
-      setTimeout(finish, 2500); // localhost gathers fast; cap the wait
+      setTimeout(finish, 2500);
     });
   }
 
-  // Apply the browser's SDP answer.
   answer(session, sdp) {
     const rec = this.sessions.get(session);
     if (!rec || rec.closed) return false;
@@ -228,61 +297,53 @@ export class GameServer {
   }
 
   onControlMessage(rec, msg) {
-    if (!Buffer.isBuffer(msg)) return; // text frames (e.g. client chat) ignored
+    if (!Buffer.isBuffer(msg)) return;
     const req = decodeClockRequest(msg);
     if (req) {
-      const reply = encodeClockResponse(req.id, req.sentAt, this.serverTick());
+      const reply = encodeClockResponse(req.id, req.sentAt, this.serverTick(rec.inst));
       try {
         rec.control.sendMessageBinary(reply);
         rec.clockReplies++;
         if (rec.clockReplies === 1) this.log(`[rtc ${rec.playerId}] clock synced`);
-      } catch {
-        /* channel closing */
-      }
+      } catch {}
       return;
     }
     const op = opcodeOf(msg);
-    if (op === OP.INPUT) { this.sim.input(rec.playerId, msg); return; } // reliable action inputs
-    // Non-framed control messages are JSON (chat, emote, ...).
+    if (op === OP.INPUT) { try { rec.inst.sim && rec.inst.sim.input(rec.playerId, msg); } catch {} return; }
     if (msg.length && msg[0] === 0x7b) {
       let j;
       try { j = JSON.parse(msg.toString('utf8')); } catch { return; }
       if (!j) return;
       if (j.kind === 'chat' && typeof j.text === 'string') this.sendChat(rec, j.text);
       else if (j.kind === 'emote' && typeof j.variant === 'string') {
-        // Relay the emote to everyone so the dance plays on all clients.
-        // "life" must equal the player's authoritative generation or the client
-        // cancels the emote immediately.
-        const life = this.sim.generation(rec.playerId);
+        const life = rec.inst.sim ? rec.inst.sim.generation(rec.playerId) : 1;
         const out = { kind: 'emote', id: rec.playerId, variant: j.variant.slice(0, 16), life };
-        this.log(`[emote] ${rec.nickname} -> ${j.variant} (life=${life})`);
-        this.broadcastControlJson(out);
-      } else {
-        this.log(`[control-json] ${rec.playerId}: ${JSON.stringify(j).slice(0, 80)}`);
+        this.broadcastControlJson(rec.inst, out);
       }
     }
   }
 
-  // Control-channel JSON messages (roster, emote, ...) are sent as binary.
   sendControlJson(rec, obj) {
     if (!rec || rec.closed || !rec.control) return;
-    try { if (!rec.control.isOpen || rec.control.isOpen()) rec.control.sendMessageBinary(Buffer.from(JSON.stringify(obj), 'utf8')); } catch { /* closing */ }
+    try { if (!rec.control.isOpen || rec.control.isOpen()) rec.control.sendMessageBinary(Buffer.from(JSON.stringify(obj), 'utf8')); } catch {}
   }
 
-  broadcastControlJson(obj) {
-    for (const rec of this.sessions.values()) if (!rec.closed) this.sendControlJson(rec, obj);
-  }
-
-  // Announce a player's nickname so nametags and the scoreboard are correct.
-  announcePlayer(rec) {
-    const info = (r) => ({ kind: 'player', id: r.playerId, nickname: r.nickname || 'Guest', bot: false, botLevel: 0 });
-    this.broadcastControlJson(info(rec));                       // tell everyone about the joiner
-    for (const other of this.sessions.values()) {              // tell the joiner about everyone
-      if (other.joinedSim && other !== rec) this.sendControlJson(rec, info(other));
+  broadcastControlJson(inst, obj) {
+    for (const session of inst.players) {
+      const rec = this.sessions.get(session);
+      if (rec && !rec.closed) this.sendControlJson(rec, obj);
     }
   }
 
-  // Broadcast a chat line to every player as a binary "SHAT" packet.
+  announcePlayer(rec) {
+    const info = (r) => ({ kind: 'player', id: r.playerId, nickname: r.nickname || 'Guest', bot: false, botLevel: 0 });
+    this.broadcastControlJson(rec.inst, info(rec));           // tell everyone in the room about the joiner
+    for (const session of rec.inst.players) {                 // tell the joiner about everyone in the room
+      const other = this.sessions.get(session);
+      if (other && other.joinedSim && other !== rec) this.sendControlJson(rec, info(other));
+    }
+  }
+
   sendChat(sender, text) {
     text = String(text).trim().slice(0, 180);
     if (!text) return;
@@ -295,18 +356,19 @@ export class GameServer {
     pkt.writeUInt16LE(nick.length, 12);
     nick.copy(pkt, 14);
     body.copy(pkt, 14 + nick.length);
-    for (const rec of this.sessions.values()) {
-      if (rec.closed || !rec.control) continue;
-      try { if (!rec.control.isOpen || rec.control.isOpen()) rec.control.sendMessageBinary(pkt); } catch { /* closing */ }
+    for (const session of sender.inst.players) {
+      const rec = this.sessions.get(session);
+      if (!rec || rec.closed || !rec.control) continue;
+      try { if (!rec.control.isOpen || rec.control.isOpen()) rec.control.sendMessageBinary(pkt); } catch {}
     }
-    this.log(`[chat] ${sender.nickname}: ${text}`);
+    this.log(`[chat ${sender.inst.id}] ${sender.nickname}: ${text}`);
   }
 
   onStateMessage(rec, msg) {
     if (!Buffer.isBuffer(msg)) return;
     const op = opcodeOf(msg);
-    if (op === OP.INPUT) { this.sim.input(rec.playerId, msg); return; } // movement inputs
-    if (op === OP.SNAPSHOT_ACK) return; // client acking snapshots
+    if (op === OP.INPUT) { try { rec.inst.sim && rec.inst.sim.input(rec.playerId, msg); } catch {} return; }
+    if (op === OP.SNAPSHOT_ACK) return;
   }
 
   destroy(session) {
@@ -314,20 +376,24 @@ export class GameServer {
     if (!rec || rec.closed) return;
     rec.closed = true;
     this.sessions.delete(session);
-    if (rec.joinedSim) try { this.sim.leave(rec.playerId); } catch {}
+    const inst = rec.inst;
+    if (inst) {
+      inst.players.delete(session);
+      if (rec.joinedSim) try { inst.sim && inst.sim.leave(rec.playerId); } catch {}
+    }
     try { rec.control && rec.control.close(); } catch {}
     try { rec.state && rec.state.close(); } catch {}
     try { rec.pc.close(); } catch {}
     this.log(`[rtc ${rec.playerId}] destroyed`);
+    // tear the instance down once it empties
+    if (inst && inst.players.size === 0) this._closeInstance(inst);
   }
 
-  leave(session) {
-    this.destroy(session);
-  }
+  leave(session) { this.destroy(session); }
 
   shutdown() {
     for (const session of [...this.sessions.keys()]) this.destroy(session);
-    try { this.sim && this.sim.stop(); } catch {}
+    for (const inst of [...this.instances.values()]) this._closeInstance(inst);
     try { nodeDataChannel.cleanup(); } catch {}
   }
 }
