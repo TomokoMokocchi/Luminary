@@ -115,6 +115,7 @@
 
       el.root = r;
       el.body = r.querySelector('.dc-body');
+      el.cmd = r.querySelector('.dc-cmdline');
       el.input = r.querySelector('.dc-cmdline input');
       el.tabAll = r.querySelector('[data-f="all"]');
       el.tabWarn = r.querySelector('[data-f="warn"]');
@@ -135,6 +136,10 @@
         if (ev.key === 'Enter') {
           var cmd = el.input.value.trim();
           if (!cmd) return;
+          // Only the game's creator may run code here. Everyone else gets a
+          // read-only console (logs/warnings/errors) so they can't eval JS to
+          // cheat or poke at another person's game.
+          if (!canRunScripts()) { el.input.value = ''; add('err', 'Read-only console — only the game creator can run scripts.'); return; }
           hist.push(cmd); hi = hist.length;
           el.input.value = '';
           add('cmd', '> ' + cmd);
@@ -155,11 +160,26 @@
       render(); updateBadges();
     }
 
+    // Is the current browser the creator of the map being played? Only then do
+    // we expose the JS command line. selectedGame().owned is set from /api/maps
+    // (the server marks a map owned when this browser's key-hash matches the
+    // map's ownerKey — the key itself is never exposed).
+    function canRunScripts() {
+      try { var g = (typeof selectedGame === 'function') && selectedGame(); return !!(g && g.owned); } catch (e) { return false; }
+    }
+    function applyPerms() {
+      if (!el.cmd) return;
+      var ok = canRunScripts();
+      el.cmd.hidden = !ok;
+      el.cmd.title = ok ? '' : 'Only the game creator can run scripts.';
+    }
+
     function toggle(force) {
       if (!built) build();
       var open = typeof force === 'boolean' ? force : !el.root.classList.contains('open');
       el.root.classList.toggle('open', open);
-      if (open) setTimeout(function () { el.input && el.input.focus(); }, 0);
+      applyPerms();
+      if (open && el.cmd && !el.cmd.hidden) setTimeout(function () { el.input && el.input.focus(); }, 0);
     }
 
     ['log', 'info', 'warn', 'error', 'debug'].forEach(function (m) {

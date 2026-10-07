@@ -401,6 +401,7 @@ body.studio-open{overflow:hidden}
 .av-card.sel{background:rgba(0,162,255,.16);border-color:var(--blue)}
 .av-thumb{width:40px;height:40px;border-radius:6px;background:#0e0f12;display:block}
 .av-thumb-ic{font-size:26px;line-height:40px;height:40px}
+.av-thumb-img{width:40px;height:40px;border-radius:6px;background:#0e0f12;object-fit:cover;display:block;image-rendering:auto}
 .av-card-nm{opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:68px}
 .av-sublbl{font-size:11px;letter-spacing:.06em;color:var(--ink-soft);font-weight:800;margin:12px 2px 6px;text-transform:uppercase}
 .av-colorrow{display:grid;grid-template-columns:repeat(10,1fr);gap:6px}
@@ -456,16 +457,22 @@ body.lum-custom #player-rows .player-row span:nth-child(3){display:none!importan
 /* ======================================================================== */
 /* lay the play card and the server panel side by side over the live backdrop */
 body:not(.playing) #join-screen main{
-  max-width:none!important;display:flex!important;align-items:flex-start;gap:18px;
-  flex-wrap:wrap;padding:0 24px 24px 0!important;
+  max-width:none!important;
+  margin:calc(var(--nav-h) + 30px) 24px 24px calc(var(--side-w) + 48px)!important;
+  padding:0!important;
+  display:flex!important;align-items:stretch;gap:18px;flex-wrap:wrap;
 }
-body:not(.playing) .lobby-hero{flex:0 0 440px;max-width:440px}
+body:not(.playing) .lobby-hero{flex:0 0 440px;max-width:440px;align-self:flex-start}
 /* the whole play card rounds cleanly now the map frame is gone */
 body:not(.playing) .hero-copy{border-radius:10px!important;border-bottom:1px solid var(--line)!important}
-/* server browser as its OWN framed panel to the right of the play card */
-#lum-servers{flex:1 1 360px;min-width:300px;background:rgba(14,16,20,.6);backdrop-filter:blur(7px);
+/* Server browser as its OWN framed panel beside the play card — same top, same
+   height, and the list scrolls inside instead of pushing the page or overlapping. */
+#lum-servers{flex:1 1 360px;min-width:300px;align-self:stretch;max-height:72vh;
+  display:flex;flex-direction:column;margin-top:0;
+  background:rgba(14,16,20,.6);backdrop-filter:blur(7px);
   -webkit-backdrop-filter:blur(7px);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
-#lum-servers #rbx-serverhead{margin:0 0 10px}
+#lum-servers #rbx-serverhead{margin:0 0 10px;flex:0 0 auto}
+#lum-servers .lum-server-list{flex:1 1 auto;min-height:0;overflow-y:auto;margin-top:0;align-content:start}
 body:not(.playing) .lum-server-list{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 .lum-srv{background:rgba(26,28,33,.82)!important}
 .lum-noservers{background:rgba(26,28,33,.55)!important}

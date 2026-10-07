@@ -52,7 +52,8 @@
     hair: { style: 'short', color: [60, 40, 28] },
     hat: 'none', faceAcc: 'none',
     shirt: { style: 'tee', color: [0, 162, 255] },
-    pants: { style: 'jeans', color: [45, 71, 156] }
+    pants: { style: 'jeans', color: [45, 71, 156] },
+    costume: 'none'
   };
 
   // one-click full outfits
@@ -73,6 +74,7 @@
 
   var CATS = [
     { id: 'packages', label: 'Packages' },
+    { id: 'costume', label: 'Costumes' },
     { id: 'body', label: 'Body' },
     { id: 'face', label: 'Face' },
     { id: 'hair', label: 'Hair' },
@@ -92,6 +94,7 @@
     for (var k in DEFAULT) if (a[k] == null) a[k] = clone(DEFAULT[k]);
     if (a.shirt && !a.shirt.style) a.shirt.style = 'tee';
     if (a.pants && !a.pants.style) a.pants.style = 'plain';
+    if (a.costume == null) a.costume = 'none';
     return a;
   }
   function load() { try { var a = JSON.parse(localStorage.getItem('luminary_avatar')); if (a) return migrate(a); } catch (e) {} return clone(DEFAULT); }
@@ -120,6 +123,56 @@
   function col(rgb) { return (new THREE.Color()).setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255); }
   function rgbCss(c) { return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; }
   function shade(c, k) { return c.map(function (v) { return Math.max(0, Math.min(255, Math.round(v * k))); }); }
+
+  // =========================================================================
+  //  REAL AVATAR MESHES  (the actual Roblox R6 geometry + accessory costumes)
+  // =========================================================================
+  // The engine ships every mesh — the R6 head/torso/limbs AND the robot
+  // accessory costumes — inline inside roblox-assets/runtime.json
+  // ({ meshes:{ path -> {positions,normals,uvs,indices} }, botAppearances }).
+  // We load that once and render the SAME geometry the game uses, so the editor
+  // preview is the real avatar, not a stand-in. Costumes come straight from
+  // botAppearances (mesh + texture + body colours).
+  var RT = { data: null, promise: null, geo: {}, costumes: [] };
+  // The game (and its asset tree) is mounted under /SFOTH/ on this server.
+  var ASSET_BASE = '/SFOTH/roblox-assets/';
+  function loadRuntime() {
+    if (RT.promise) return RT.promise;
+    RT.promise = fetch(ASSET_BASE + 'runtime.json').then(function (r) { return r.json(); }).then(function (d) {
+      RT.data = d;
+      var ba = d.botAppearances || {};
+      RT.costumes = Object.keys(ba).map(function (k) {
+        var b = ba[k];
+        return { id: 'bot-' + k, name: b.name, mesh: b.mesh, texture: b.texture, colors: b.colors };
+      });
+      if (d.botHat && d.botHat.mesh) RT.costumes.push({ id: 'bothat', name: d.botHat.name || 'Spy Hat', mesh: d.botHat.mesh, texture: d.botHat.texture, colors: d.botHat.colors });
+      return d;
+    }).catch(function () { RT.data = null; return null; });
+    return RT.promise;
+  }
+  function meshData(path) { return RT.data && RT.data.meshes ? RT.data.meshes[path] : null; }
+  // Build (and cache) a THREE.BufferGeometry from a runtime mesh record.
+  function meshGeo(path) {
+    if (RT.geo[path]) return RT.geo[path];
+    var m = meshData(path); if (!m) return null;
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(m.positions), 3));
+    if (m.normals && m.normals.length === m.positions.length) g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(m.normals), 3));
+    if (m.uvs) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(m.uvs), 2));
+    if (m.indices) g.setIndex(m.indices);
+    if (!m.normals || m.normals.length !== m.positions.length) g.computeVertexNormals();
+    RT.geo[path] = g; return g;
+  }
+  // Roblox mesh textures use a top-left UV origin; keep flipY off so they map
+  // the same way the game maps them.
+  var _texCache = {};
+  function assetTexture(path) {
+    if (_texCache[path]) return _texCache[path];
+    var t = new THREE.TextureLoader().load(ASSET_BASE + path);
+    t.flipY = false; if ('colorSpace' in t) t.colorSpace = THREE.SRGBColorSpace; else t.encoding = 3001;
+    _texCache[path] = t; return t;
+  }
+  function costumeById(id) { for (var i = 0; i < RT.costumes.length; i++) if (RT.costumes[i].id === id) return RT.costumes[i]; return null; }
 
   // =========================================================================
   //  TEXTURES
@@ -292,20 +345,68 @@
     return { torso: [2, 2, 1], head: 1.4, arm: [1, 2, 1], leg: [1, 2, 1], armX: 1.5, legX: 0.5 };
   }
 
+  // Material for a real mesh part. DoubleSide so winding never hides a face in
+  // the preview; a plain colour unless a texture is given.
+  function meshMat(color) { return new THREE.MeshLambertMaterial({ color: col(color), side: THREE.DoubleSide }); }
+  function texMat(path) { return new THREE.MeshLambertMaterial({ map: assetTexture(path), transparent: true, alphaTest: 0.35, side: THREE.DoubleSide }); }
+  function rtMesh(path, material, pos, scale) {
+    var g = meshGeo(path); if (!g) return null;
+    var m = new THREE.Mesh(g, material);
+    if (pos) m.position.set(pos[0], pos[1], pos[2]);
+    if (scale) m.scale.set(scale[0], scale[1], scale[2]);
+    return m;
+  }
+
   function buildCharacter(pivot) {
-    var d = dims(), parts = {};
-    var skinMat = function () { return mat(state.skin); };
+    var parts = {};
+    var cz = costumeById(state.costume);          // active full costume (or null)
+    var haveMesh = !!meshData('builtin/avatar/meshes/torso.mesh');
+
+    // ---- REAL R6 geometry (the same meshes the game renders) ---------------
+    if (haveMesh) {
+      var slim = state.bodyType === 'slim';
+      var sx = slim ? 0.72 : 1;                    // slim narrows torso/limbs on X/Z
+      var skinCol = cz ? cz.colors.head : state.skin;
+      var torsoMat = cz ? meshMat(cz.colors.torso) : clothMat(state.shirt, 'torso');
+      var armMat = function () { return cz ? meshMat(cz.colors.arms) : clothMat(state.shirt, 'arm'); };
+      var legMat = function () { return cz ? meshMat(cz.colors.legs) : clothMat(state.pants, 'leg'); };
+
+      parts.torso = rtMesh('builtin/avatar/meshes/torso.mesh', torsoMat, [0, 0, 0], [sx, 1, sx]); pivot.add(parts.torso);
+      parts.head = rtMesh('builtin/avatar/heads/head.mesh', meshMat(skinCol), [0, 1.6, 0]); pivot.add(parts.head);
+      parts.armL = rtMesh('builtin/avatar/meshes/leftarm.mesh', armMat(), [-1.5 * sx, 0, 0], [sx, 1, sx]); pivot.add(parts.armL);
+      parts.armR = rtMesh('builtin/avatar/meshes/rightarm.mesh', armMat(), [1.5 * sx, 0, 0], [sx, 1, sx]); pivot.add(parts.armR);
+      parts.legL = rtMesh('builtin/avatar/meshes/leftleg.mesh', legMat(), [-0.5 * sx, -2, 0], [sx, 1, sx]); pivot.add(parts.legL);
+      parts.legR = rtMesh('builtin/avatar/meshes/rightleg.mesh', legMat(), [0.5 * sx, -2, 0], [sx, 1, sx]); pivot.add(parts.legR);
+
+      // face decal on the rounded head front (head mesh bounds ~ ±0.6)
+      if (parts.head) {
+        var face = mesh(new THREE.PlaneGeometry(0.95, 0.95), new THREE.MeshBasicMaterial({ map: faceTexture(state.face), transparent: true }), [0, 0.06, 0.63]);
+        parts.head.add(face); parts.face = face;
+      }
+
+      if (cz) {
+        // the robot costume shell, overlaid at the character root (torso centre)
+        var cm = rtMesh(cz.mesh, texMat(cz.texture), [0, 0, 0]);
+        if (cm) { pivot.add(cm); parts.costume = cm; }
+      } else if (parts.head) {
+        // procedural accessories only when not wearing a full costume
+        parts.hair = buildHair(state.hair.style, state.hair.color, 1.2); parts.head.add(parts.hair);
+        parts.hat = buildHat(state.hat, 1.2); parts.head.add(parts.hat);
+        parts.faceAcc = buildFaceAcc(state.faceAcc, 1.2); parts.head.add(parts.faceAcc);
+      }
+      return parts;
+    }
+
+    // ---- fallback: block avatar (runtime.json not loaded yet) --------------
+    var d = dims();
     parts.torso = mesh(new THREE.BoxGeometry(d.torso[0], d.torso[1], d.torso[2]), clothMat(state.shirt, 'torso'), [0, 1, 0]); pivot.add(parts.torso);
-    parts.head = mesh(new THREE.BoxGeometry(d.head, d.head, d.head), skinMat(), [0, 1 + d.torso[1] / 2 + d.head / 2, 0]); pivot.add(parts.head);
+    parts.head = mesh(new THREE.BoxGeometry(d.head, d.head, d.head), mat(state.skin), [0, 1 + d.torso[1] / 2 + d.head / 2, 0]); pivot.add(parts.head);
     parts.armL = mesh(new THREE.BoxGeometry(d.arm[0], d.arm[1], d.arm[2]), clothMat(state.shirt, 'arm'), [-d.armX, 1, 0]); pivot.add(parts.armL);
     parts.armR = mesh(new THREE.BoxGeometry(d.arm[0], d.arm[1], d.arm[2]), clothMat(state.shirt, 'arm'), [d.armX, 1, 0]); pivot.add(parts.armR);
     parts.legL = mesh(new THREE.BoxGeometry(d.leg[0], d.leg[1], d.leg[2]), clothMat(state.pants, 'leg'), [-d.legX, -1, 0]); pivot.add(parts.legL);
     parts.legR = mesh(new THREE.BoxGeometry(d.leg[0], d.leg[1], d.leg[2]), clothMat(state.pants, 'leg'), [d.legX, -1, 0]); pivot.add(parts.legR);
-    // hands/lower-leg skin for sleeveless/shorts looks
-    // face
-    var face = mesh(new THREE.PlaneGeometry(d.head, d.head), new THREE.MeshBasicMaterial({ map: faceTexture(state.face), transparent: true }), [0, 0, d.head / 2 + 0.006]);
-    parts.head.add(face); parts.face = face;
-    // 3D accessories on the head
+    var face2 = mesh(new THREE.PlaneGeometry(d.head, d.head), new THREE.MeshBasicMaterial({ map: faceTexture(state.face), transparent: true }), [0, 0, d.head / 2 + 0.006]);
+    parts.head.add(face2); parts.face = face2;
     parts.hair = buildHair(state.hair.style, state.hair.color, d.head); parts.head.add(parts.hair);
     parts.hat = buildHat(state.hat, d.head); parts.head.add(parts.hat);
     parts.faceAcc = buildFaceAcc(state.faceAcc, d.head); parts.head.add(parts.faceAcc);
@@ -342,6 +443,9 @@
     var shadow = mesh(new THREE.CircleGeometry(2.2, 24), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22 }), [0, -3.02, 0], [-Math.PI / 2, 0, 0]); scene.add(shadow);
     viewer = { scene: scene, camera: camera, renderer: renderer, pivot: pivot, parts: {}, charGroup: null, raf: 0, dragging: false, rot: 0 };
     rebuild();
+    // Load the real avatar meshes; rebuild with them (and populate the costume
+    // catalog) the moment they arrive. Until then the block avatar shows.
+    loadRuntime().then(function () { if (viewer) { rebuild(); if (root && cat === 'costume') renderPanel(); } });
     var loop = function () { if (!viewer) return; if (!viewer.dragging) viewer.rot += 0.01; pivot.rotation.y = viewer.rot; renderer.render(scene, camera); viewer.raf = requestAnimationFrame(loop); };
     loop();
     var lastX = 0;
@@ -391,6 +495,15 @@
     var html = '';
     if (cat === 'packages') {
       html = '<div class="av-pkgs">' + PACKAGES.map(function (p, i) { return '<button class="av-pkg" data-pkg="' + i + '">' + p.name + '</button>'; }).join('') + '</div>';
+    } else if (cat === 'costume') {
+      if (!RT.data) html = '<div class="av-sublbl">Loading real costumes…</div>';
+      else {
+        var cc = '<button class="av-card' + (state.costume === 'none' ? ' sel' : '') + '" data-costume="none"><span class="av-thumb-ic">🚫</span><span class="av-card-nm">None</span></button>';
+        cc += RT.costumes.map(function (c) {
+          return '<button class="av-card' + (state.costume === c.id ? ' sel' : '') + '" data-costume="' + c.id + '"><img class="av-thumb-img" src="' + ASSET_BASE + c.texture + '" alt="" loading="lazy"><span class="av-card-nm">' + c.name + '</span></button>';
+        }).join('');
+        html = '<div class="av-grid">' + cc + '</div><div class="av-sublbl">Real Roblox mesh costumes — geometry, texture &amp; body colours straight from the game.</div>';
+      }
     } else if (cat === 'body') {
       html = '<div class="av-seg"><button class="av-chip' + (state.bodyType === 'classic' ? ' sel' : '') + '" data-body="classic">Classic</button><button class="av-chip' + (state.bodyType === 'slim' ? ' sel' : '') + '" data-body="slim">Slim</button></div>' +
         '<div class="av-sublbl">Skin tone</div>' + colorRowHtml(SKIN, state.skin, 'skin');
@@ -442,8 +555,10 @@
     root.addEventListener('click', function (e) { if (e.target === root) close(); });
     root.querySelectorAll('.av-cat').forEach(function (b) { b.onclick = function () { cat = b.dataset.cat; renderPanel(); }; });
     root.addEventListener('click', function (e) {
-      var t = e.target.closest('[data-item],[data-color],[data-body],[data-pkg],[data-act]'); if (!t) return;
-      if (t.dataset.item != null) {
+      var t = e.target.closest('[data-item],[data-color],[data-body],[data-pkg],[data-act],[data-costume]'); if (!t) return;
+      if (t.dataset.costume != null) {
+        state.costume = t.dataset.costume; renderPanel(); apply();
+      } else if (t.dataset.item != null) {
         var it = t.dataset.item;
         if (cat === 'face') state.face = it;
         else if (cat === 'hair') state.hair.style = it;

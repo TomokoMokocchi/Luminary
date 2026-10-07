@@ -184,7 +184,7 @@ function sanitizeAppearance(a) {
     shirt: { color: col(a.shirt && a.shirt.color, [0, 162, 255]), pattern: str(a.shirt && a.shirt.pattern, 16) },
     pants: { color: col(a.pants && a.pants.color, [45, 71, 156]), pattern: str(a.pants && a.pants.pattern, 16) },
     hair: { style: str(a.hair && a.hair.style, 16), color: col(a.hair && a.hair.color, [60, 40, 28]) },
-    hat: str(a.hat, 16), faceAcc: str(a.faceAcc, 16),
+    hat: str(a.hat, 16), faceAcc: str(a.faceAcc, 16), costume: str(a.costume, 24),
   };
 }
 
