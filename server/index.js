@@ -312,6 +312,40 @@ function broadcastStream(req, res) {
 // client trim + skin bundle (injected into index.html at serve time)
 // ---------------------------------------------------------------------------
 const CLIENT_INJECT = `
+<script>
+(function(){
+  // Apply the saved avatar's COLOURS (skin / shirt / pants) to the player's OWN
+  // in-game character. The engine builds every human with three shared materials
+  // and transmits no per-player appearance, so we capture our own player id from
+  // the join response and hand the patched character builder a recoloured clone
+  // for just our character; everyone else keeps the default look. Clothing
+  // patterns and 3D accessories can't be shown in-game (not transmitted).
+  try {
+    var _of = window.fetch;
+    window.fetch = function(u){
+      var p = _of.apply(this, arguments);
+      try { if (String(u).indexOf('/api/guest/join') >= 0) p.then(function(r){ try { r.clone().json().then(function(j){ if (j && j.playerId != null) window.__lumLocalId = j.playerId; }).catch(function(){}); } catch(e){} }); } catch(e){}
+      return p;
+    };
+  } catch(e){}
+  window.__lumMats = {};
+  window.__lumCharMat = function(part, mesh, pid, zx, Bx, Rx){
+    var def = part === 'Torso' ? zx : (part.indexOf('Leg') >= 0 ? Bx : Rx);
+    try {
+      if (pid !== window.__lumLocalId) return def;
+      var a = JSON.parse(localStorage.getItem('luminary_avatar')); if (!a) return def;
+      var col = part === 'Torso' ? (a.shirt && a.shirt.color) : (part.indexOf('Leg') >= 0 ? (a.pants && a.pants.color) : a.skin);
+      if (!col || col.length < 3) return def;
+      var key = part + ':' + col.join(',');
+      if (window.__lumMats[key]) return window.__lumMats[key];
+      var m = def.clone ? def.clone('lum-' + key) : def;
+      var apply = function(c){ if (c){ c.r = col[0]/255; c.g = col[1]/255; c.b = col[2]/255; } };
+      apply(m.diffuseColor); apply(m.albedoColor);
+      window.__lumMats[key] = m; return m;
+    } catch(e){ return def; }
+  };
+})();
+</script>
 <style id="sfoth-trim">
 /* strip the captured chrome; the 2016 skin rebuilds the lobby it needs */
 .sfoth-page-nav,#account-upsell,.leaderboards-link-card,.hero-leaderboards,.hero-story,
