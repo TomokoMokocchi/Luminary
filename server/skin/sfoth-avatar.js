@@ -13,7 +13,9 @@
 (function () {
   'use strict';
 
-  var THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+  // Served locally so the editor works with no external CDN / offline.
+  var THREE_URL = '/sfoth-skin/three.min.js';
+  var THREE_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
 
   // classic Roblox BrickColor-ish palette
   var PALETTE = [
@@ -75,11 +77,16 @@
     if (window.THREE) { THREE = window.THREE; return Promise.resolve(THREE); }
     if (loading) return loading;
     loading = new Promise(function (resolve, reject) {
-      var s = document.createElement('script');
-      s.src = THREE_URL; s.async = true;
-      s.onload = function () { THREE = window.THREE; resolve(THREE); };
-      s.onerror = function () { reject(new Error('three.js failed to load')); };
-      document.head.appendChild(s);
+      var tryLoad = function (url, next) {
+        var s = document.createElement('script');
+        s.src = url; s.async = true;
+        s.onload = function () { THREE = window.THREE; THREE ? resolve(THREE) : next(); };
+        s.onerror = next;
+        document.head.appendChild(s);
+      };
+      tryLoad(THREE_URL, function () {
+        tryLoad(THREE_CDN, function () { reject(new Error('three.js failed to load')); });
+      });
     });
     return loading;
   }

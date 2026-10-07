@@ -54,10 +54,13 @@ body:not(.playing)::before{
 /* nav + sidebar sit above the scrim */
 #rbx-topnav,#lum-gamelist{z-index:60}
 body:not(.playing) #join-screen{position:relative;z-index:2}
-/* The brick loading screen must sit ON TOP of everything (it used to render
-   under the left sidebar on a lower z-index and was hidden). Promote it to a
-   full-screen top overlay whenever it is shown. */
-#arena-loader{position:fixed!important;inset:0!important;z-index:99998!important;display:flex!important;align-items:center;justify-content:center}
+/* The brick loading screen used to render UNDER the left sidebar because its
+   ancestor (#join-screen) sits in a low stacking context. Switch it to
+   position:fixed so it escapes that context and keeps its own card geometry
+   (top:49% / right:5% from the captured .arena-loader class), then give it a
+   z-index above the nav + sidebar so it shows IN FRONT of the other frames —
+   without stretching it across the top of the screen. */
+#arena-loader{position:fixed!important;z-index:99990!important}
 body:not(.playing) #instances{display:block!important;margin-top:18px!important}
 
 /* ---- top navigation ----------------------------------------------------- */

@@ -41,3 +41,15 @@ For now host locally and port forward or use ngrok or hamachi (playit.gg locked 
 Host cmd example:
 
 pkill -f "node index.js"; sleep 1; PORT=80 sudo node index.js
+
+IMPORTANT — gameplay needs the .NET SimHost (it produces the world snapshots the
+browser plays). Running with plain `sudo` resets HOME to /root, so the server
+can't find your dotnet and players connect but immediately get "The room stopped
+sending state". Either keep your env, or point it at dotnet explicitly:
+
+  sudo -E env "SFOTH_DOTNET=$HOME/.dotnet/dotnet" PORT=80 node index.js
+
+The server now also searches SUDO_USER's home, DOTNET_ROOT, PATH and the usual
+system install paths, and prints "gameplay ENABLED/DISABLED" at startup so you
+can see immediately whether joins will work. (Requires .NET 10 — the SimHost
+targets net10.0.)

@@ -4,23 +4,63 @@
 // emits each authoritative v23 snapshot it produces. Framing is a 4-byte LE
 // length prefix in both directions.
 
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Locate the .NET 10 runtime (the SimHost needs it). Override with SFOTH_DOTNET.
-function findDotnet() {
-  if (process.env.SFOTH_DOTNET && fs.existsSync(process.env.SFOTH_DOTNET)) return process.env.SFOTH_DOTNET;
-  const candidates = [
-    path.join(process.env.HOME || '', '.dotnet', 'dotnet'),
+function exists(p) { try { return !!p && fs.existsSync(p); } catch { return false; } }
+
+// The real home directory of the person running the server. Under `sudo`,
+// process.env.HOME is /root but the .NET install lives in the invoking user's
+// home — so prefer SUDO_USER's home. This is THE reason joining can silently
+// fail: no dotnet found -> no SimHost -> no world snapshots -> the client
+// errors with "The room stopped sending state".
+function realHomes() {
+  const homes = [];
+  if (process.env.SUDO_USER) {
+    homes.push(path.join('/home', process.env.SUDO_USER));
+    if (process.platform === 'darwin') homes.push(path.join('/Users', process.env.SUDO_USER));
+  }
+  if (process.env.HOME) homes.push(process.env.HOME);
+  try { homes.push(os.homedir()); } catch {}
+  // any user home that has a .dotnet (handles unusual usernames)
+  for (const base of ['/home', '/Users']) {
+    try { for (const u of fs.readdirSync(base)) homes.push(path.join(base, u)); } catch {}
+  }
+  return [...new Set(homes)];
+}
+
+// Locate the .NET runtime the SimHost needs. Override with SFOTH_DOTNET.
+// Searches: explicit env, DOTNET_ROOT, every real home's ~/.dotnet, PATH, and
+// the usual system install locations (apt / snap / manual / macOS).
+export function findDotnet() {
+  if (exists(process.env.SFOTH_DOTNET)) return process.env.SFOTH_DOTNET;
+
+  const candidates = [];
+  for (const root of [process.env.DOTNET_ROOT, process.env.DOTNET_ROOT ? path.join(process.env.DOTNET_ROOT, 'x64') : null]) {
+    if (root) candidates.push(path.join(root, 'dotnet'));
+  }
+  for (const h of realHomes()) candidates.push(path.join(h, '.dotnet', 'dotnet'));
+  // PATH lookup (may be stripped by sudo secure_path, so it's only one source)
+  try {
+    const found = execSync('command -v dotnet 2>/dev/null || which dotnet 2>/dev/null', { encoding: 'utf8' }).trim();
+    if (found) candidates.push(found);
+  } catch {}
+  candidates.push(
+    '/usr/lib/dotnet/dotnet',
+    '/usr/share/dotnet/dotnet',
+    '/usr/local/share/dotnet/dotnet',
+    '/opt/dotnet/dotnet',
+    '/snap/dotnet-sdk/current/dotnet',
+    '/snap/bin/dotnet',
     '/usr/bin/dotnet',
     '/usr/local/bin/dotnet',
-    '/tmp/claude-1000/-home-ray-AI-shit/e0b96088-8708-4f04-b0bf-cb6738631adf/scratchpad/dotnet/dotnet',
-  ];
-  return candidates.find((c) => { try { return fs.existsSync(c); } catch { return false; } });
+  );
+  return candidates.find(exists);
 }
 
 export class SimBridge {
@@ -39,9 +79,21 @@ export class SimBridge {
     const dotnet = findDotnet();
     const dll = path.join(__dirname, 'sim', 'bin', 'Release', 'net10.0', 'SimHost.dll');
     if (!dotnet || !fs.existsSync(dll)) {
-      this.log(`[sim] disabled (dotnet=${dotnet} dll=${fs.existsSync(dll)}) — gameplay snapshots off`);
+      this.log(`[sim] disabled (dotnet=${dotnet || 'NOT FOUND'} dll=${fs.existsSync(dll)}) — gameplay snapshots off`);
+      if (!dotnet && !this._warnedNoDotnet) {
+        this._warnedNoDotnet = true;
+        this.log('==================================================================');
+        this.log(' GAMEPLAY IS DISABLED: the .NET runtime (SimHost) was not found.');
+        this.log(' Players will CONNECT but then get "The room stopped sending state"');
+        this.log(' because no world snapshots are produced. To fix, point the server');
+        this.log(' at your dotnet, e.g.:   SFOTH_DOTNET=$HOME/.dotnet/dotnet node index.js');
+        this.log(' (Running under sudo? HOME becomes /root, so pass SFOTH_DOTNET or');
+        this.log('  keep it: sudo -E env "SFOTH_DOTNET=$HOME/.dotnet/dotnet" node index.js)');
+        this.log('==================================================================');
+      }
       return false;
     }
+    this.log(`[sim] using dotnet: ${dotnet}`);
     this.proc = spawn(dotnet, [dll, this.refDir], {
       stdio: ['pipe', 'pipe', 'pipe'],
       // SFOTH_FULL=1 -> full snapshots (players + platforms + tools + world physics)

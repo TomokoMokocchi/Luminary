@@ -45,7 +45,6 @@ export class GameServer {
     this.instances = new Map();  // roomId ("server-N") -> instance
     this.startTime = Date.now();
     this.nextPlayerId = 500 + Math.floor(Math.random() * 500);
-    this.nextServerNum = 1;      // monotonic; names are server-<n>
     this.totalPlays = 0;         // real join counter
     this.fragId = 0;
   }
@@ -53,8 +52,17 @@ export class GameServer {
   // ---------------------------------------------------------------------------
   // instances
   // ---------------------------------------------------------------------------
+  // Names reflect how many servers are actually running: pick the lowest free
+  // number, so when server-2 closes and a new server is needed it becomes
+  // server-2 again (we never renumber a running server).
+  _nextServerNum() {
+    let n = 1;
+    while (this.instances.has('server-' + n)) n++;
+    return n;
+  }
+
   _createInstance(mapId) {
-    const id = 'server-' + (this.nextServerNum++);
+    const id = 'server-' + this._nextServerNum();
     const inst = {
       id,
       mapId: mapId || 'heights',
@@ -252,7 +260,23 @@ export class GameServer {
     control.onOpen(() => this.log(`[rtc ${playerId}] control open`));
     control.onMessage((msg) => this.onControlMessage(record, msg));
 
-    const sdp = await this.gatherOffer(pc, playerId);
+    // Reap a session that signals but never actually opens its data channels
+    // (e.g. a client that aborts, or a probe) so its instance does not linger
+    // empty forever.
+    record.connectTimer = setTimeout(() => {
+      if (!record.closed && !record.joinedSim) {
+        this.log(`[rtc ${playerId}] never connected — reaping`);
+        this.destroy(session);
+      }
+    }, 45000);
+
+    let sdp;
+    try {
+      sdp = await this.gatherOffer(pc, playerId);
+    } catch (e) {
+      this.destroy(session); // removes the player and closes the instance if empty
+      throw e;
+    }
 
     return {
       session,
@@ -375,6 +399,7 @@ export class GameServer {
     const rec = this.sessions.get(session);
     if (!rec || rec.closed) return;
     rec.closed = true;
+    if (rec.connectTimer) { clearTimeout(rec.connectTimer); rec.connectTimer = null; }
     this.sessions.delete(session);
     const inst = rec.inst;
     if (inst) {
