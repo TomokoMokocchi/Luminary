@@ -9,3 +9,7 @@ Programming (and creating maps)
 Creating maps seems possible currently but currently there is no clear view on how scripting will be integrated into this project (It is a major priority so games can run smoothly.) Currently I don't have a domain or VPS so I don't have a way to publicly run this but I will get there eventually.
 
 For now host locally and port forward or use ngrok or hamachi (playit.gg locked tcp hosting behind a paywall.)
+
+Host cmd example:
+
+pkill -f "node index.js"; sleep 1; PORT=80 sudo node index.js
