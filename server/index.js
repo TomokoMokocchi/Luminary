@@ -107,9 +107,9 @@ function sendJson(res, status, obj, extra = {}) {
   res.end(body);
 }
 
-function sendText(res, status, text, type = 'text/plain; charset=utf-8') {
+function sendText(res, status, text, type = 'text/plain; charset=utf-8', extra = {}) {
   const body = Buffer.from(text);
-  res.writeHead(status, { 'content-type': type, 'content-length': body.length });
+  res.writeHead(status, { 'content-type': type, 'content-length': body.length, ...extra });
   res.end(body);
 }
 
@@ -197,6 +197,27 @@ function selectedMap(req) {
 // ---------------------------------------------------------------------------
 // static files
 // ---------------------------------------------------------------------------
+// A content version for the engine bundle we patch in place. Vite names it with
+// a content hash and we'd normally cache it forever, but because WE edit
+// online-CmTrGRGN.js (avatar colours, costumes, shift-lock, …) without the hash
+// changing, an immutable cache would pin browsers to the stale bundle. So we
+// derive a version from the file's mtime+size and stamp it through the load
+// chain (index.html -> entry -> bundle), and serve those two files revalidating.
+let _assetVer = null;
+function assetVer() {
+  if (_assetVer) return _assetVer;
+  try {
+    const s = fs.statSync(path.join(WEBROOT, 'SFOTH', 'assets', 'online-CmTrGRGN.js'));
+    _assetVer = (Math.round(s.mtimeMs).toString(36) + '-' + s.size.toString(36));
+  } catch { _assetVer = 'lum'; }
+  return _assetVer;
+}
+// The engine files we patch in place — never immutably cached.
+function isPatchedAsset(abs) {
+  const b = path.basename(abs);
+  return b === 'online-CmTrGRGN.js' || b === 'online-BuEqjnOE.js';
+}
+
 async function serveStatic(req, res, pathname) {
   let rel = decodeURIComponent(pathname);
   if (rel.endsWith('/')) rel += 'index.html';
@@ -214,10 +235,18 @@ async function serveStatic(req, res, pathname) {
     return serveStatic(req, res, pathname.replace(/\/?$/, '/'));
   }
 
+  // The Vite entry imports the bundle by a fixed path; version-stamp that import
+  // so a patched bundle is fetched fresh, and serve the (small) entry rewritten.
+  if (path.basename(abs) === 'online-BuEqjnOE.js') {
+    let js = await fsp.readFile(abs, 'utf8');
+    js = js.replace('assets/online-CmTrGRGN.js', 'assets/online-CmTrGRGN.js?v=' + assetVer());
+    return sendText(res, 200, js, 'text/javascript; charset=utf-8', { 'cache-control': 'no-cache', 'access-control-allow-origin': '*' });
+  }
+
   const type = mimeFor(abs);
   const headers = {
     'content-type': type,
-    'cache-control': abs.includes(`${path.sep}assets${path.sep}`) || abs.includes(`${path.sep}_framework${path.sep}`)
+    'cache-control': (!isPatchedAsset(abs) && (abs.includes(`${path.sep}assets${path.sep}`) || abs.includes(`${path.sep}_framework${path.sep}`)))
       ? 'public, max-age=31536000, immutable'
       : 'no-cache',
   };
@@ -445,7 +474,9 @@ async function serveIndex(req, res) {
   try { html = await fsp.readFile(path.join(WEBROOT, 'SFOTH', 'index.html'), 'utf8'); }
   catch { return sendText(res, 404, 'Not found'); }
   html = html.replace('</body>', CLIENT_INJECT + '</body>');
-  return sendText(res, 200, html, 'text/html; charset=utf-8');
+  // Version-stamp the module entry so a patched bundle busts the browser cache.
+  html = html.replace('/SFOTH/assets/online-BuEqjnOE.js', '/SFOTH/assets/online-BuEqjnOE.js?v=' + assetVer());
+  return sendText(res, 200, html, 'text/html; charset=utf-8', { 'cache-control': 'no-cache' });
 }
 
 // ---------------------------------------------------------------------------
