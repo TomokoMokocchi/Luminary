@@ -1,0 +1,7 @@
+# Private .NET runtime the server bootstraps when the host has none (large)
+server/.dotnet/
+server/dotnet-install.sh
+server/dotnet-install.ps1
+
+# Optional live replay frames
+server/broadcast-frames.json

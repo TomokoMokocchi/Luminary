@@ -42,14 +42,22 @@ Host cmd example:
 
 pkill -f "node index.js"; sleep 1; PORT=80 sudo node index.js
 
-IMPORTANT — gameplay needs the .NET SimHost (it produces the world snapshots the
-browser plays). Running with plain `sudo` resets HOME to /root, so the server
-can't find your dotnet and players connect but immediately get "The room stopped
-sending state". Either keep your env, or point it at dotnet explicitly:
+GAMEPLAY RUNTIME (works on any host, no manual install)
 
-  sudo -E env "SFOTH_DOTNET=$HOME/.dotnet/dotnet" PORT=80 node index.js
+Gameplay needs the .NET SimHost — it produces the authoritative world snapshots
+the browser plays. If the host has no .NET, players connect and then get "The
+room stopped sending state" because no snapshots are produced.
 
-The server now also searches SUDO_USER's home, DOTNET_ROOT, PATH and the usual
-system install paths, and prints "gameplay ENABLED/DISABLED" at startup so you
-can see immediately whether joins will work. (Requires .NET 10 — the SimHost
-targets net10.0.)
+You do NOT need to install .NET yourself. On startup the server looks for an
+existing runtime (SFOTH_DOTNET, DOTNET_ROOT, every user's ~/.dotnet — including
+SUDO_USER's when run under sudo — PATH, and the usual system paths) and, if it
+finds none, automatically downloads a private ~35MB .NET runtime into
+server/.dotnet once (no sudo, no system changes) and runs the SimHost against
+it. First run needs outbound network for that one download; after that it works
+offline. It prints "gameplay ENABLED/DISABLED" at startup so you can see
+immediately whether joins will work.
+
+  * Already have .NET?            it's found and used, nothing is downloaded.
+  * Want to point at a specific runtime:  SFOTH_DOTNET=/path/to/dotnet node index.js
+  * Don't want the auto-download:         SFOTH_NO_DOTNET_BOOTSTRAP=1 (then install
+                                          .NET 10 yourself — the SimHost targets net10.0).

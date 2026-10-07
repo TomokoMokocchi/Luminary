@@ -28,7 +28,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { GameServer } from './webrtc.js';
 import { MapStore, hashKey } from './maps.js';
-import { findDotnet } from './sim-bridge.js';
+import { ensureDotnet } from './sim-bridge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEBROOT = path.resolve(__dirname, '..'); // the ".../2008" directory
@@ -608,14 +608,17 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   log(`SFOTH server on http://localhost:${PORT}/SFOTH/  (webroot: ${WEBROOT})`);
-  // Up-front gameplay readiness check: without the .NET SimHost no world
-  // snapshots are produced, so players connect but the client times out with
-  // "The room stopped sending state". Surface it now, not only on first join.
-  const dn = findDotnet();
-  if (dn) log(`[boot] gameplay ENABLED — SimHost will run via ${dn}`);
-  else log('[boot] gameplay DISABLED — no .NET runtime found. Set SFOTH_DOTNET=/path/to/dotnet ' +
-          '(under sudo, HOME is /root, so pass it explicitly: ' +
-          'sudo -E env "SFOTH_DOTNET=$HOME/.dotnet/dotnet" node index.js).');
+  // Up-front gameplay readiness: the SimHost produces the world snapshots the
+  // client plays; without them players connect and then get "The room stopped
+  // sending state". Resolve a runtime now (bootstrapping a private one if the
+  // host has none) so the first join is instant and the status is clear.
+  log('[boot] preparing gameplay runtime…');
+  ensureDotnet(log).then((dn) => {
+    if (dn) log(`[boot] gameplay ENABLED — SimHost will run via ${dn}`);
+    else log('[boot] gameplay DISABLED — no .NET runtime and auto-bootstrap unavailable. ' +
+            'Set SFOTH_DOTNET=/path/to/dotnet, or allow outbound network for the one-time ~35MB runtime download ' +
+            '(disable the download with SFOTH_NO_DOTNET_BOOTSTRAP=1).');
+  });
 });
 
 function shutdown() {
