@@ -203,20 +203,17 @@
       '<a class="rbx-logo" href="/SFOTH/"><span class="rbx-cube"></span>Luminary</a>' +
       '<nav><a href="/SFOTH/">Play</a><a href="#" id="rbx-nav-create">Create</a><a href="#" id="rbx-nav-avatar">Avatar</a></nav>' +
       '<span class="rbx-spacer"></span>' +
-      '<span class="rbx-robux"><b>L</b><span id="rbx-online">—</span> online</span>';
+      '<button class="rbx-friends" id="rbx-nav-friends">👥 Friends<span class="rbx-badge" id="rbx-friend-badge" hidden>0</span></button>';
     document.body.appendChild(bar);
     var av = bar.querySelector('#rbx-nav-avatar');
     if (av) av.onclick = function (e) { e.preventDefault(); if (window.LuminaryAvatar) window.LuminaryAvatar.open(); };
     var cr = bar.querySelector('#rbx-nav-create');
     if (cr) cr.onclick = function (e) { e.preventDefault(); if (window.LuminaryMaker) window.LuminaryMaker.open(); };
+    var fr = bar.querySelector('#rbx-nav-friends');
+    if (fr) fr.onclick = function (e) { e.preventDefault(); Friends.open(); };
     var tg = bar.querySelector('#lum-sidetoggle');
     if (tg) tg.onclick = function () { var s = document.getElementById('lum-gamelist'); if (s) s.classList.toggle('show'); };
-    var src = document.getElementById('hero-player-count-value');
-    if (src) {
-      var sync = function () { var o = document.getElementById('rbx-online'); if (o) o.textContent = (src.textContent || '—').trim(); };
-      sync();
-      new MutationObserver(sync).observe(src, { childList: true, characterData: true, subtree: true });
-    }
+    Friends.start(); // begin polling for requests/unread so the badge updates
   }
 
   function relabelPlay() {
@@ -287,10 +284,13 @@
     renderSidebar();
   }
 
+  var SIDEBAR_CAP = 60; // cap rendered items to avoid lag with many games (search for the rest)
   function renderSidebar() {
     var list = document.getElementById('gl-list'); if (!list) return;
     var items = GAMES.list.filter(function (m) { return !GAMES.filter || m.name.toLowerCase().indexOf(GAMES.filter) >= 0; });
     if (!items.length) { list.innerHTML = '<div class="gl-empty">No games match your search.</div>'; return; }
+    var total = items.length, hidden = 0;
+    if (items.length > SIDEBAR_CAP) { hidden = items.length - SIDEBAR_CAP; items = items.slice(0, SIDEBAR_CAP); }
     list.innerHTML = items.map(function (m) {
       var meta = m.builtin ? 'The original arena' : (m.blocks + ' parts · ' + (m.scripts ? m.scripts + ' scripts · ' : '') + m.plays + ' plays');
       var likeBtns = m.builtin ? '' :
@@ -304,6 +304,7 @@
         '<div class="gl-meta" data-pick="' + m.id + '">by ' + esc(m.author) + ' · ' + meta + '</div>' +
         likeBtns + '</div>';
     }).join('');
+    if (hidden > 0) list.insertAdjacentHTML('beforeend', '<div class="gl-more">+' + hidden + ' more of ' + total + ' — use search to find them</div>');
     list.querySelectorAll('[data-pick]').forEach(function (it) { it.onclick = function () { selectGame(it.dataset.pick); }; });
     list.querySelectorAll('[data-vote]').forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); vote(b.dataset.id, +b.dataset.vote); }; });
     list.querySelectorAll('[data-edit]').forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); if (window.LuminaryMaker) window.LuminaryMaker.open(b.dataset.edit); }; });
@@ -405,15 +406,30 @@
     play: setSelected
   };
 
-  function gameName() { var g = selectedGame(); return g ? g.name : 'Luminary'; }
+  function gameName() { var g = selectedGame(); return g ? g.name : 'SFOTH'; }
+  // The PLATFORM is Luminary (nav logo / brand). The base game/map is SFOTH and
+  // keeps its original copy; custom maps show their own name + description (or
+  // none) instead of the SFOTH taglines/version.
   function rebrand() {
-    var name = gameName();
-    try { document.title = name === 'Luminary' ? 'Luminary' : ('Luminary — ' + name); } catch (e) {}
+    var g = selectedGame();
+    var name = g ? g.name : 'SFOTH';
+    var isBase = !g || g.id === 'heights';
+    try { document.title = 'Luminary — ' + name; } catch (e) {}
     var title = document.getElementById('title-name');
-    if (title) { var up = (name || 'Luminary').toUpperCase(); if (title.textContent.trim() !== up) title.innerHTML = esc(up); }
+    if (title) { var up = (name || 'SFOTH').toUpperCase(); if (title.textContent.trim() !== up) title.innerHTML = esc(up); }
+    // nav/topbar brand always reads "Luminary" (the platform)
     document.querySelectorAll('.brand').forEach(function (el) { if (el.textContent.trim() !== 'Luminary') el.textContent = 'Luminary'; });
     var kicker = document.querySelector('.hero-kicker');
-    if (kicker && kicker.textContent !== 'FIGHT ON THE FLOATING HEIGHTS') kicker.textContent = 'FIGHT ON THE FLOATING HEIGHTS';
+    var version = document.querySelector('.hero-version');
+    var desc = document.querySelector('.hero-description');
+    if (isBase) {
+      // leave the original SFOTH taglines/version/description untouched
+      if (version) version.style.display = '';
+    } else {
+      if (kicker) kicker.textContent = g.author ? ('BY ' + g.author.toUpperCase()) : '';
+      if (version) version.style.display = 'none';
+      if (desc) desc.textContent = g.description || '';
+    }
   }
 
   // Fix "pixely until resize" first-join + start client scripts for the map.
@@ -481,26 +497,95 @@
     if (val && valSrc) val.textContent = (valSrc.textContent || '100').trim();
   }
 
-  // A framed "live map" window directly under the Play button. The lobby
-  // renders the selected map full-screen as a backdrop; this frame is a clean
-  // window onto it (the card above is translucent), so the play screen shows a
-  // smaller, cropped view of the map instead of a tall empty panel.
-  function mountMapFrame() {
-    if (document.getElementById('lum-map-frame')) return;
-    var hero = document.querySelector('.lobby-hero');
-    var copy = hero && hero.querySelector('.hero-copy');
-    if (!hero || !copy) return;
-    var f = document.createElement('div');
-    f.id = 'lum-map-frame';
-    f.innerHTML = '<span class="lmf-tag"><i></i>LIVE</span><span class="lmf-hint">preview of ' + esc(gameName()) + '</span>';
-    if (copy.nextSibling) hero.insertBefore(f, copy.nextSibling); else hero.appendChild(f);
-  }
+  // =========================================================================
+  //  FRIENDS + MESSAGING  (identity is the per-browser key, never the name)
+  // =========================================================================
+  var Friends = (function () {
+    var S = { data: null, openCode: null, pollTimer: null, chatTimer: null, root: null };
+    function api(path, body) {
+      var opt = { headers: Object.assign({ 'content-type': 'application/json' }, keyHeaders()) };
+      if (body !== undefined) { opt.method = 'POST'; opt.body = JSON.stringify(body); }
+      return fetch('/api/social/' + path, opt).then(function (r) { return r.json(); });
+    }
+    function start() { if (S.pollTimer) return; lumKey(); poll(); S.pollTimer = setInterval(poll, 6000); }
+    function poll() {
+      api('sync', {}).then(function (d) { if (d && d.code) { S.data = d; badge(d); if (S.root && S.root.classList.contains('open')) renderMain(); } }).catch(function () {});
+    }
+    function badge(d) {
+      var b = document.getElementById('rbx-friend-badge'); if (!b) return;
+      var n = (d.unreadTotal || 0) + (d.incoming ? d.incoming.length : 0);
+      if (n > 0) { b.textContent = n; b.hidden = false; } else b.hidden = true;
+    }
+    function build() {
+      if (S.root) return;
+      var r = document.createElement('div'); r.id = 'lum-friends';
+      r.innerHTML =
+        '<div class="fr-modal"><div class="fr-head"><span class="fr-title"><span class="rbx-cube"></span>Friends</span><button class="fr-x">×</button></div>' +
+        '<div class="fr-body"><div class="fr-side">' +
+          '<div class="fr-code">Your code <b id="fr-mycode">—</b><button class="fr-copy" id="fr-copy">Copy</button></div>' +
+          '<div class="fr-add"><input id="fr-add-input" placeholder="Add by code (ABCD-1234)" maxlength="9" autocomplete="off"><button id="fr-add-btn">Add</button></div>' +
+          '<div id="fr-add-status" class="fr-status"></div><div id="fr-requests"></div>' +
+          '<div class="fr-list-title">Friends</div><div id="fr-list" class="fr-list"></div>' +
+        '</div><div class="fr-chat" id="fr-chat"><div class="fr-chat-empty">Select a friend to start chatting.</div></div></div></div>';
+      document.body.appendChild(r);
+      S.root = r;
+      r.querySelector('.fr-x').onclick = close;
+      r.addEventListener('click', function (e) { if (e.target === r) close(); });
+      r.querySelector('#fr-copy').onclick = function () { try { navigator.clipboard.writeText((S.data && S.data.code) || ''); this.textContent = 'Copied'; var b = this; setTimeout(function () { b.textContent = 'Copy'; }, 1000); } catch (e) {} };
+      r.querySelector('#fr-add-btn').onclick = doAdd;
+      r.querySelector('#fr-add-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') doAdd(); });
+    }
+    function doAdd() {
+      var inp = S.root.querySelector('#fr-add-input'), code = inp.value.trim().toUpperCase();
+      var st = S.root.querySelector('#fr-add-status'); if (!code) return;
+      api('add', { code: code }).then(function (d) {
+        st.textContent = d.status === 'requested' ? 'Request sent.' : d.status === 'friends' ? 'You are now friends!' : d.status === 'self' ? "That's your own code." : d.status === 'notfound' ? 'No user with that code.' : 'Error.';
+        inp.value = ''; poll();
+      });
+    }
+    function renderMain() {
+      var d = S.data; if (!d || !S.root) return;
+      S.root.querySelector('#fr-mycode').textContent = d.code || '—';
+      var rq = S.root.querySelector('#fr-requests');
+      rq.innerHTML = (d.incoming && d.incoming.length) ? ('<div class="fr-list-title">Requests</div>' + d.incoming.map(function (f) { return '<div class="fr-req"><span>' + esc(f.name) + ' <small>' + f.code + '</small></span><button data-accept="' + f.code + '">Accept</button></div>'; }).join('')) : '';
+      rq.querySelectorAll('[data-accept]').forEach(function (b) { b.onclick = function () { api('accept', { code: b.dataset.accept }).then(poll); }; });
+      var list = S.root.querySelector('#fr-list');
+      list.innerHTML = (d.friends && d.friends.length) ? d.friends.map(function (f) { return '<div class="fr-item' + (S.openCode === f.code ? ' active' : '') + '" data-code="' + f.code + '"><span class="fr-dot' + (f.online ? ' on' : '') + '"></span><span class="fr-nm">' + esc(f.name) + '</span>' + (f.unread ? '<span class="fr-unread">' + f.unread + '</span>' : '') + '</div>'; }).join('') : '<div class="fr-empty">No friends yet — share your code above.</div>';
+      list.querySelectorAll('.fr-item').forEach(function (it) { it.onclick = function () { openChat(it.dataset.code); }; });
+    }
+    function openChat(code) {
+      S.openCode = code; renderMain();
+      var chat = S.root.querySelector('#fr-chat');
+      var f = (S.data.friends || []).find(function (x) { return x.code === code; });
+      chat.innerHTML = '<div class="fr-chat-head">' + esc(f ? f.name : code) + ' <small>' + code + '</small></div><div class="fr-log" id="fr-log"></div><div class="fr-send"><input id="fr-msg" placeholder="Message…" maxlength="500" autocomplete="off"><button id="fr-send-btn">Send</button></div>';
+      chat.querySelector('#fr-send-btn').onclick = sendMsg;
+      chat.querySelector('#fr-msg').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sendMsg(); } });
+      loadChat(); clearInterval(S.chatTimer); S.chatTimer = setInterval(loadChat, 4000);
+    }
+    function loadChat() {
+      if (!S.openCode || !S.root) return;
+      fetch('/api/social/dm?code=' + encodeURIComponent(S.openCode), { headers: keyHeaders() }).then(function (r) { return r.json(); }).then(function (d) {
+        var log = S.root.querySelector('#fr-log'); if (!log || !d.messages) return;
+        var atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 40;
+        log.innerHTML = d.messages.map(function (m) { return '<div class="fr-m' + (m.mine ? ' mine' : '') + '">' + esc(m.text) + '</div>'; }).join('');
+        if (atBottom) log.scrollTop = log.scrollHeight;
+        poll();
+      }).catch(function () {});
+    }
+    function sendMsg() {
+      var inp = S.root.querySelector('#fr-msg'); var t = inp.value.trim(); if (!t || !S.openCode) return;
+      inp.value = '';
+      api('dm', { code: S.openCode, text: t }).then(function () { loadChat(); });
+    }
+    function open() { build(); S.root.classList.add('open'); poll(); renderMain(); }
+    function close() { if (S.root) S.root.classList.remove('open'); clearInterval(S.chatTimer); }
+    return { open: open, close: close, start: start };
+  })();
 
   async function mountLobby() {
     mountTopNav();
     mountSetName();
     relabelPlay();
-    mountMapFrame();
     watchPlaying();
     inGameTweaks();
     await fetchGames();

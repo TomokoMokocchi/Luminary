@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 import { GameServer } from './webrtc.js';
 import { MapStore, hashKey } from './maps.js';
 import { ensureDotnet } from './sim-bridge.js';
+import { SocialStore } from './social.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEBROOT = path.resolve(__dirname, '..'); // the ".../2008" directory
@@ -52,6 +53,9 @@ const maps = new MapStore({
   log,
 });
 maps.init().catch((e) => log('[maps] init failed:', e.message));
+
+// Friends + DMs, keyed by the per-browser key (see social.js).
+const social = new SocialStore({ storeFile: path.join(__dirname, 'social-store.json'), log });
 
 const game = new GameServer({
   iceServers: ICE_SERVERS.flatMap((s) => (Array.isArray(s.urls) ? s.urls : [s.urls])),
@@ -392,12 +396,21 @@ async function handle(req, res) {
       }
       default: break;
     }
+    // DM history with a friend (marks them read).
+    if (api === 'api/social/dm') {
+      const kh = ownerKeyHash(req);
+      if (!kh) return sendJson(res, 401, { error: 'no key' });
+      const h = social.history(kh, url.searchParams.get('code'), chosenName(req));
+      if (!h) return sendJson(res, 404, { error: 'no such friend' });
+      return sendJson(res, 200, { messages: h });
+    }
+
     // GET a single map's full definition (for editing / playing / inspecting).
     if (mapMatch && !mapMatch[2]) {
       const m = maps.get(mapMatch[1]);
       if (!m) return sendJson(res, 404, { error: 'no such map' });
       return sendJson(res, 200, {
-        id: m.id, name: m.name, author: m.author, builtin: !!m.builtin,
+        id: m.id, name: m.name, author: m.author, description: m.description || '', builtin: !!m.builtin,
         blocks: m.blocks || [], spawns: m.spawns || [], tools: m.tools || [], scripts: m.scripts || [],
         settings: m.settings || { starterSword: false, leaderboard: [] },
         plays: m.plays || 0, likes: m.likes || 0, dislikes: m.dislikes || 0,
@@ -430,6 +443,22 @@ async function handle(req, res) {
     return sendJson(res, 200, { ok, selected: value }, {
       'set-cookie': `lum_map=${encodeURIComponent(value)};path=/;max-age=31536000;samesite=lax`,
     });
+  }
+
+  // --- friends + messaging (identified by the per-browser key) ---
+  if (method === 'POST' && api.startsWith('api/social/')) {
+    const kh = ownerKeyHash(req);
+    if (!kh) return sendJson(res, 401, { error: 'no key' });
+    const name = chosenName(req); // '' when unset — the store keeps the existing name then
+    const body = await readJson(req);
+    switch (api) {
+      case 'api/social/sync': return sendJson(res, 200, social.sync(kh, name));
+      case 'api/social/add': return sendJson(res, 200, social.add(kh, body.code, name));
+      case 'api/social/accept': return sendJson(res, 200, social.accept(kh, body.code, name));
+      case 'api/social/remove': return sendJson(res, 200, social.remove(kh, body.code));
+      case 'api/social/dm': return sendJson(res, 200, social.dm(kh, body.code, body.text, name));
+      default: return sendJson(res, 404, { error: 'unknown' });
+    }
   }
 
   // --- dynamic POST endpoints ---

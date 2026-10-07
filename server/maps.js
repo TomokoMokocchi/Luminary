@@ -55,8 +55,10 @@ export class MapStore {
     await fsp.mkdir(this.storeDir, { recursive: true });
     await fsp.mkdir(this.genDir, { recursive: true });
     // built-in Heights
+    // The built-in map is SFOTH (the platform is Luminary; this map is SFOTH).
     this.maps.set('heights', {
-      id: 'heights', name: 'Luminary', author: 'Shedletsky', builtin: true,
+      id: 'heights', name: 'SFOTH', author: 'Shedletsky', builtin: true,
+      description: 'The classic Heights, live in your browser. Watch a match or jump in as a guest—no account needed.',
       createdAt: 0, blocks: [], spawns: [], scripts: [], tools: [],
       settings: { starterSword: true, leaderboard: ['KOs', 'Wipeouts'] },
       plays: 0, likes: 0, dislikes: 0, votes: {}, ownerKey: null,
@@ -96,7 +98,7 @@ export class MapStore {
   // with the built-in arena kept at the top.
   list(viewerKeyHash = null) {
     const arr = [...this.maps.values()].map((m) => ({
-      id: m.id, name: m.name, author: m.author || 'anonymous', builtin: !!m.builtin,
+      id: m.id, name: m.name, author: m.author || 'anonymous', description: m.description || '', builtin: !!m.builtin,
       createdAt: m.createdAt || 0, updatedAt: m.updatedAt || m.createdAt || 0,
       blocks: (m.blocks || []).length, spawns: (m.spawns || []).length,
       scripts: (m.scripts || []).length, tools: (m.tools || []).length,
@@ -140,6 +142,7 @@ export class MapStore {
       id,
       name: (def.name || 'Untitled').toString().slice(0, 40),
       author: (def.author || 'anonymous').toString().slice(0, 20),
+      description: (def.description || '').toString().slice(0, 160),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       builtin: false,
@@ -165,6 +168,7 @@ export class MapStore {
     if (!m || m.builtin) return 'notfound';
     if (!m.ownerKey || m.ownerKey !== ownerKeyHash) return 'forbidden';
     if (def.name != null) m.name = def.name.toString().slice(0, 40);
+    if (def.description != null) m.description = def.description.toString().slice(0, 160);
     if (def.blocks != null) m.blocks = sanitizeBlocks(def.blocks);
     if (def.spawns != null) { m.spawns = sanitizeSpawns(def.spawns); if (!m.spawns.length) m.spawns = [[0, 1, 0]]; }
     if (def.tools != null) m.tools = sanitizeTools(def.tools);
@@ -385,15 +389,19 @@ export class MapStore {
     const t = this._tpl;
     const parts = [];
     const childIds = [];
-    let id = 2;
+    const nBlocks = def.blocks.length;
+    // CRITICAL: the visual scene part ids MUST match the arena (physics) part
+    // ids one-to-one, or the client can't bind a physics body to its mesh and
+    // fails with "Missing geometry for undefined". generateArena numbers blocks
+    // GEN_ID_BASE+i then spawns GEN_ID_BASE+nBlocks+j, so we mirror that exactly
+    // here. Scene-only instances (decals, camera) use a separate high range.
+    let extraId = GEN_ID_BASE + 500000;
 
-    // Deep-clone a template's child instances (e.g. the SpawnLocation's Decal
-    // that draws the spawn logo) with fresh ids, so they render in-game too.
     const cloneChildren = (tplChildren, parentId) => {
       const out = [];
       for (const ch of tplChildren || []) {
         const c = JSON.parse(JSON.stringify(ch));
-        const cid = id++;
+        const cid = extraId++;
         c.id = cid; c.parent = parentId;
         c.children = cloneChildren(ch.children, cid);
         parts.push(c);
@@ -402,9 +410,8 @@ export class MapStore {
       return out;
     };
 
-    const clonePart = (tpl, { pos, size, color, name, rotation = IDENTITY, studs = false }) => {
+    const clonePart = (tpl, pid, { pos, size, color, name, rotation = IDENTITY, studs = false }) => {
       const p = JSON.parse(JSON.stringify(tpl));
-      const pid = id++;
       p.id = pid; p.name = name; p.path = 'Workspace/' + name; p.parent = 0;
       p.children = cloneChildren(tpl.children, pid); // keep the template's decals/children
       const P = p.properties;
@@ -416,26 +423,26 @@ export class MapStore {
       if (P.Anchored) P.Anchored.value = true;
       if (P.CanCollide) P.CanCollide.value = true;
       if (P.Transparency) P.Transparency.value = 0;
-      // Give baseplates the classic stud surface on top so they look right.
-      if (studs && P.TopSurface) P.TopSurface.value = 3; // SurfaceType.Studs
+      if (studs && P.TopSurface) P.TopSurface.value = 3; // SurfaceType.Studs on baseplates
       childIds.push(pid);
       parts.push(p);
       return pid;
     };
 
-    for (const b of def.blocks) {
+    def.blocks.forEach((b, i) => {
       const isBase = (b.size && b.size[0] >= 100);
-      clonePart(t.part, { pos: b.pos, size: b.size, color: b.color || [163, 162, 165], name: isBase ? 'Baseplate' : 'Block', studs: isBase });
-    }
-    for (const s of def.spawns) {
-      clonePart(t.spawn, { pos: [s[0], s[1], s[2]], size: [6, 1.2, 6], color: [245, 205, 48], name: 'SpawnLocation' });
-    }
+      clonePart(t.part, GEN_ID_BASE + i, { pos: b.pos, size: b.size, color: b.color || [163, 162, 165], name: isBase ? 'Baseplate' : 'Block', studs: isBase });
+    });
+    def.spawns.forEach((s, j) => {
+      clonePart(t.spawn, GEN_ID_BASE + nBlocks + j, { pos: [s[0], s[1], s[2]], size: [6, 1.2, 6], color: [245, 205, 48], name: 'SpawnLocation' });
+    });
 
     // a camera that frames the whole map
     const b = bounds(def);
     const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
     const span = Math.max(40, b.maxX - b.minX, b.maxZ - b.minZ);
     const camera = JSON.parse(JSON.stringify(t.cameraTpl));
+    camera.id = extraId++;
     camera.properties.CFrame.value = {
       position: [cx, b.maxY + span * 0.7, cz + span * 0.9],
       rotation: [0.86, -0.17, 0.48, 0, 0.94, 0.34, -0.51, -0.29, 0.81],
@@ -447,7 +454,7 @@ export class MapStore {
       children: childIds.concat([camera.id]),
       properties: JSON.parse(JSON.stringify(t.workspaceProps)),
     };
-    if (ws.properties.PrimaryPart) ws.properties.PrimaryPart.value = { referent: childIds[0] || 2 };
+    if (ws.properties.PrimaryPart) ws.properties.PrimaryPart.value = { referent: childIds[0] || GEN_ID_BASE };
 
     return {
       formatVersion: 1,

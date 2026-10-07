@@ -8,3 +8,6 @@ server/broadcast-frames.json
 
 # .NET build cache (bin/ is kept — it ships SimHost.dll)
 server/sim/obj/
+
+# runtime social data (friends/DMs)
+server/social-store.json
