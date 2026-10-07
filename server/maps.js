@@ -397,15 +397,19 @@ export class MapStore {
     // here. Scene-only instances (decals, camera) use a separate high range.
     let extraId = GEN_ID_BASE + 500000;
 
+    // Children (e.g. the SpawnLocation's Decal) live ONLY as nested objects
+    // inside their parent's `children` array — NEVER in the top-level `parts`
+    // list. The engine's geometry loader iterates every top-level part and
+    // requires a CFrame + Size on each; a Decal has neither, so pushing one to
+    // the top level throws "Missing geometry for undefined". So we return the
+    // full nested child objects here and do not touch `parts`.
     const cloneChildren = (tplChildren, parentId) => {
       const out = [];
       for (const ch of tplChildren || []) {
         const c = JSON.parse(JSON.stringify(ch));
-        const cid = extraId++;
-        c.id = cid; c.parent = parentId;
-        c.children = cloneChildren(ch.children, cid);
-        parts.push(c);
-        out.push(cid);
+        c.id = extraId++; c.parent = parentId;
+        c.children = cloneChildren(ch.children, c.id);
+        out.push(c);
       }
       return out;
     };
