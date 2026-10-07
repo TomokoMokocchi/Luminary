@@ -143,10 +143,12 @@ export class GameServer {
     return { mapId, wantRoom };
   }
 
-  // Current authoritative tick for an instance — follows its simulation.
+  // Current authoritative tick for an instance — ALWAYS the sim's own tick (on
+  // the sim's epoch), interpolated between snapshots, and 0 before the sim has
+  // produced any. Never a boot-relative estimate: mixing epochs makes the
+  // client's prediction snap across a huge gap and fling the character.
   serverTick(inst) {
-    if (inst && inst.sim && inst.sim.lastTick > 0) return inst.sim.lastTick;
-    return Math.max(0, Math.round((Date.now() - this.startTime) * (CLOCK_HZ / 1000)));
+    return inst && inst.sim ? inst.sim.currentTick() : 0;
   }
 
   // Wrap an op-2/11 snapshot in the v23 transport envelope (opcode 8, full

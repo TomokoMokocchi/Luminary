@@ -128,10 +128,24 @@ export class SimBridge {
     this.proc = null;
     this.buf = Buffer.alloc(0);
     this.lastTick = 0;
+    this.lastTickAt = 0;          // wall-clock of the last snapshot
+    this.gotSnapshot = false;
     this.generations = new Map(); // playerId -> character generation
     this.ready = false;
     this.pending = [];            // commands queued while the runtime boots
     this._stopped = false;
+  }
+
+  // The sim's CURRENT authoritative tick, interpolated between snapshots. The
+  // client's clock syncs to this, so it MUST stay on the sim's own epoch (ticks
+  // since this sim process started, advancing at 60 Hz). Returning anything on a
+  // different epoch — e.g. ticks-since-server-boot before the sim has started —
+  // makes the client reconcile across a huge gap and fling the character. Before
+  // the first snapshot we report 0, which matches where the sim begins.
+  currentTick() {
+    if (!this.gotSnapshot) return 0;
+    const dt = Math.max(0, Date.now() - this.lastTickAt);
+    return Math.max(0, this.lastTick + Math.round(dt * 0.06)); // 60 ticks / 1000 ms
   }
 
   // Resolve a runtime (bootstrapping one if needed), then spawn the SimHost.
@@ -176,7 +190,7 @@ export class SimBridge {
       const data = payload.subarray(1);
       if (type === 0) {
         const snap = data;
-        if (snap.length >= 12) this.lastTick = snap.readInt32LE(8);
+        if (snap.length >= 12) { this.lastTick = snap.readInt32LE(8); this.lastTickAt = Date.now(); this.gotSnapshot = true; }
         try { this.onSnapshot && this.onSnapshot(snap); } catch (e) { this.log('[sim] snapshot handler: ' + e.message); }
       } else if (type === 1) {
         // generations: [count u16][playerId i32, gen i32]*
